@@ -13,6 +13,7 @@ import complaintRoutes from './complaint.routes';
 import profileRoutes from './profile.routes';
 import clientRoutes from './client.routes';
 import bookRoutes from "./book.routes";
+import timetableRoutes from "./timetable.routes";
 
 export default async function routes(app: FastifyInstance) {
   app.register(authRoutes, { prefix: "/auth" });
@@ -29,4 +30,5 @@ export default async function routes(app: FastifyInstance) {
   app.register(profileRoutes, { prefix: "/profile" });
   app.register(clientRoutes, { prefix: "/clients" });
   app.register(bookRoutes, { prefix: "/books" });
+  app.register(timetableRoutes, { prefix: "/timetable" });
 }

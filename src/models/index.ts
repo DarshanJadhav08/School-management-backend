@@ -9,6 +9,7 @@ import { Attendance } from "./attendance.model";
 import { Homework } from "./homework.model";
 import { Notice } from "./notice.model";
 import { Complaint } from "./complaint.model";
+import { Timetable } from "./timetable.model";
 
 // User relationships
 User.belongsTo(Role, { foreignKey: "role_id" });
@@ -43,6 +44,10 @@ Complaint.belongsTo(Student, { foreignKey: "student_id", as: "student", onDelete
 Complaint.belongsTo(Client, { foreignKey: "client_id", as: "client" });
 Complaint.belongsTo(User, { foreignKey: "responded_by", as: "responder" });
 
+// Timetable relationships
+Timetable.belongsTo(Teacher, { foreignKey: "teacher_id", as: "teacher" });
+Timetable.belongsTo(Client, { foreignKey: "client_id", as: "client" });
+
 export {
   sequelize,
   User,
@@ -55,4 +60,5 @@ export {
   Homework,
   Notice,
   Complaint,
+  Timetable,
 };
