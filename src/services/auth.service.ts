@@ -103,23 +103,29 @@ export const signupService = async (data: SignupData, createdBy?: string) => {
 };
 
 export const loginService = async (uniqueIdOrPhone: string, password: string) => {
-  if (!uniqueIdOrPhone) {
-    throw new Error("Phone or unique ID is required");
+  if (!uniqueIdOrPhone || !password) {
+    const error: any = new Error("Registration ID and password are required");
+    error.statusCode = 400;
+    throw error;
   }
 
   let user = await findUserByUniqueId(uniqueIdOrPhone);
-  
+
   if (!user) {
     user = await findUserByPhone(uniqueIdOrPhone);
   }
 
   if (!user) {
-    throw new Error("User not found");
+    const error: any = new Error("No account found with this registration ID. Please check your registration ID.");
+    error.statusCode = 404;
+    throw error;
   }
 
   const match = await bcrypt.compare(password, user.password);
   if (!match) {
-    throw new Error("Invalid password");
+    const error: any = new Error("Incorrect password. Please check your password and try again.");
+    error.statusCode = 401;
+    throw error;
   }
 
   const tokens = generateTokens(user.id, user.role_id, user.role_name, user.client_id);

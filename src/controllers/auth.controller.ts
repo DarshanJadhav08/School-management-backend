@@ -96,7 +96,12 @@ export const loginController = async (req: FastifyRequest<{ Body: LoginBody }>, 
       ...result
     });
   } catch (error: any) {
-    reply.status(400).send({ error: error.message });
+    const statusCode = error.statusCode || 400;
+    reply.status(statusCode).send({
+      statusCode,
+      error: statusCode === 404 ? "Not Found" : statusCode === 401 ? "Unauthorized" : "Bad Request",
+      message: error.message
+    });
   }
 };
 
