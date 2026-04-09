@@ -21,7 +21,7 @@ export const createStudentRepo = async (studentData: any) => {
 };
 
 export const findAllStudentsRepo = async (filters: any) => {
-  const { search, class: className, section, is_active, client_id } = filters;
+  const { search, class: className, section, is_active, client_id, limit = 10, offset = 0 } = filters;
 
   const whereUser: any = { is_active: true };
   const whereStudent: any = {};
@@ -31,7 +31,7 @@ export const findAllStudentsRepo = async (filters: any) => {
   }
 
   if (search) {
-    whereUser.first_name = { [Op.like]: `%${search}%` };
+    whereUser.first_name = { [Op.like]: `%${search}%` }; // same logic
   }
 
   if (className) {
@@ -46,7 +46,7 @@ export const findAllStudentsRepo = async (filters: any) => {
     whereUser.is_active = is_active === 'true';
   }
 
-  return await Student.findAndCountAll({
+  const result = await Student.findAndCountAll({
     where: whereStudent,
     include: [
       {
@@ -81,10 +81,12 @@ export const findAllStudentsRepo = async (filters: any) => {
       "updated_by",
       "updated_on"
     ],
-    // limit: Number(limit),
-    // offset: offset,
+    limit: Number(limit),   // ✅ added
+    offset: Number(offset), // ✅ added
     order: [["standard", "ASC"], ["division", "ASC"]],
   });
+
+  return result;
 };
 
 export const findStudentByIdRepo = async (studentId: string) => {

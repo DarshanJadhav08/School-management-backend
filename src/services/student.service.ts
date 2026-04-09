@@ -103,35 +103,45 @@ export const getStudentByIdService = async (studentId: string) => {
 
 export const getStudentProfileService = async (user_id: string) => {
   const { Student } = require("../models");
-  
-  console.log("🔍 Searching for student with user_id:", user_id);
-  
+
   const student = await Student.findOne({ 
     where: { user_id },
+    attributes: [
+      "id",
+      "user_id",
+      "client_id",
+      "first_name",
+      "middle_name",
+      "last_name",
+      "parent_name",
+      "mobile_number",
+      "date_of_birth",
+      "roll_number",
+      "gender",
+      "profile_image_url",
+      "aadhar_number",
+      "standard",
+      "division",
+      "admission_date",
+      "address",
+      "category",
+      "unique_id",
+      "created_by",
+      "created_on",
+      "updated_by",
+      "updated_on"
+    ],
     include: [{
       model: User,
       as: "user",
       attributes: ["id", "first_name", "middle_name", "last_name", "phone", "is_active"]
     }]
   });
-  
-  console.log("✅ Student found:", student ? "YES" : "NO");
-  if (student) {
-    console.log("📋 Student data:", JSON.stringify(student, null, 2));
-  } else {
-    console.log("❌ No student record in database for user_id:", user_id);
-    
-    // Check if user exists
-    const user = await User.findByPk(user_id);
-    console.log("👤 User exists:", user ? "YES" : "NO");
-    if (user) {
-      console.log("👤 User role:", (user as any).role_name);
-    }
-  }
-  
+
   if (!student) {
     throw new Error("Student profile not found");
   }
+
   return student;
 };
 
