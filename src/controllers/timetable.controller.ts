@@ -1,11 +1,29 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { timetableService } from "../services/timetable.service";
+import { NotificationService } from "../services/notification.service";
 
 const timetableController = {
   async create(req: FastifyRequest, reply: FastifyReply) {
     try {
       const { client_id } = req.params as any;
       const data = await timetableService.create(req.body, req.user, client_id);
+      
+      // Trigger Notification
+      try {
+        const { standard } = req.body as any;
+        if (standard) {
+          await NotificationService.sendToClass(
+            client_id,
+            standard,
+            "Timetable Update Zala Ahe",
+            `Tumchya vargacha (${standard}) timetable update kela ahe. Krupaya app madhe check kara.`,
+            { type: "timetable_update" }
+          );
+        }
+      } catch (notifyError) {
+        console.error("Failed to send timetable notification:", notifyError);
+      }
+
       return reply.status(201).send({ success: true, data });
     } catch (err: any) {
       return reply.status(err.statusCode || 500).send({ success: false, message: err.message });

@@ -6,6 +6,8 @@ import {
   addResponseToComplaintService,
   getStudentComplaintsService,
 } from "../services/complaint.service";
+import { NotificationService } from "../services/notification.service";
+import { User, Admin } from "../models";
 
 export const createComplaintController = async (req: any, reply: FastifyReply) => {
   try {
@@ -38,6 +40,19 @@ export const createComplaintController = async (req: any, reply: FastifyReply) =
       role,
       target_name: target_name || null,
     });
+
+    // Trigger Notification for Admin
+    try {
+      const studentName = `${req.user?.first_name} ${req.user?.last_name}` || "A Student";
+      await NotificationService.sendToAll(
+        client_id,
+        "Naveen Takrar (Complaint) Aali Ahe",
+        `${studentName} ne ek naveen takrar file keli ahe: ${title}`,
+        { type: "complaint", complaint_id: complaint.id }
+      );
+    } catch (notifyError) {
+      console.error("Failed to send complaint notification:", notifyError);
+    }
 
     reply.status(201).send({
       message: "Complaint created successfully",
@@ -105,6 +120,25 @@ export const addResponseController = async (req: any, reply: FastifyReply) => {
       message: "Response added successfully",
       data: complaint,
     });
+
+    // Trigger Notification for Student
+    try {
+      const { Complaint, Student } = require("../models");
+      const fullComplaint = await Complaint.findByPk(id, { 
+        include: [{ model: Student, as: "student" }] 
+      });
+      
+      if (fullComplaint?.student?.user_id) {
+        await NotificationService.sendToUser(
+          fullComplaint.student.user_id,
+          "Tumchya Takrarila Uttar Milele Ahe",
+          `Admin ne tumchya '${fullComplaint.title || 'Complaint'}' var pratikriya dili ahe.`,
+          { type: "complaint_response", complaint_id: id }
+        );
+      }
+    } catch (notifyError) {
+      console.error("Failed to send complaint response notification:", notifyError);
+    }
   } catch (error: any) {
     reply.status(error.statusCode || 500).send({
       statusCode: error.statusCode || 500,

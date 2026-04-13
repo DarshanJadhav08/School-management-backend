@@ -10,6 +10,7 @@ export interface IUser {
   client_id?: string | null;
   unique_id?: string;
   is_active?: boolean;
+  fcm_token?: string;
   created_at?: Date;
 }
 

@@ -2,7 +2,9 @@ import { DataTypes, Model } from "sequelize";
 import { sequelize } from "../db/connection";
 import { Teacher } from "./teacher.model";   // 👈 IMPORT IMPORTANT
 
-export class Homework extends Model {}
+export class Homework extends Model {
+  public id!: string;
+}
 
 Homework.init(
   {

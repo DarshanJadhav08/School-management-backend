@@ -17,6 +17,7 @@ export class User
   public client_id!: string;
   public unique_id!: string;
   public is_active!: boolean;
+  public fcm_token!: string;
   public created_at!: Date;
 }
 
@@ -68,6 +69,10 @@ User.init(
     is_active: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,
+    },
+    fcm_token: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
   },
   {

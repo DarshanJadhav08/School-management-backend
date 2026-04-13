@@ -11,7 +11,8 @@ import {
   bulkCreateAttendancesService,
   getStudentMonthlyAttendanceService
 } from "../services/attendance.service";
-import { Attendance } from "../models";
+import { Attendance, User, Student } from "../models";
+import { NotificationService } from "../services/notification.service";
 
 interface CreateAttendanceBody {
   student_id: string;
@@ -47,6 +48,22 @@ export const createAttendanceController = async (req: any, reply: FastifyReply) 
       status,
       remark
     });
+    
+    // Trigger Notification for single attendance
+    try {
+      if (status === 'Absent' || status === 'Late') {
+        const student = await Student.findByPk(student_id);
+        const title = status === 'Absent' ? "Aaj tumhi Absent ahat" : "Aaj tumhala USHIR (Late) zala ahe";
+        await NotificationService.sendToUser(
+          student?.get('user_id') as string,
+          title,
+          `App madhe tumchi hazari (attendance) '${status}' mhanun mark keli ahe.`,
+          { type: "attendance", status: status }
+        );
+      }
+    } catch (notifyError) {
+      console.error("Failed to send attendance notification:", notifyError);
+    }
     
     reply.status(201).send({
       message: "Attendance created successfully",
@@ -242,6 +259,26 @@ export const bulkCreateAttendancesController = async (req: any, reply: FastifyRe
     }));
     
     const attendances = await bulkCreateAttendancesService(attendancesWithAuth);
+
+    // Trigger Notification for class-wide attendance
+    try {
+      const date = req.body.attendances?.[0]?.date || new Date().toISOString().split('T')[0];
+      const studentsInBatch = await Student.findOne({ where: { id: req.body.attendances?.[0]?.student_id } });
+      const standard = studentsInBatch?.get('standard');
+
+      if (standard) {
+        await NotificationService.sendToClass(
+          client_id as string,
+          standard as string,
+          "Daily Attendance Mark Keli Ahe",
+          `Aajchi (${date}) hazari mark keli ahe. Krupaya tumcha status check kara.`,
+          { type: "attendance_batch", date: date }
+        );
+      }
+    } catch (notifyError) {
+      console.error("Failed to send bulk attendance notification:", notifyError);
+    }
+
     reply.status(201).send({
       message: "Attendances created successfully",
       count: attendances.length,

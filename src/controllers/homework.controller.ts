@@ -7,6 +7,8 @@ import {
 } from "../services/homework.service";
 import { Teacher } from "../models/teacher.model";
 import { Student } from "../models/student.model";
+import { NotificationService } from "../services/notification.service";
+import { User } from "../models";
 
 // ➕ Add Homework
 export const addHomeworkController = async (
@@ -46,6 +48,22 @@ export const addHomeworkController = async (
       teacherId,
       userId
     );
+
+    // Trigger Notification
+    try {
+      const teacherUser = await User.findByPk(userId);
+      const teacherName = teacherUser ? `${teacherUser.first_name} ${teacherUser.last_name}` : "Teacher";
+      
+      await NotificationService.sendToClass(
+        client_id,
+        body.className || body.standard,
+        "Naveen Homework Add Kele Ahe",
+        `${teacherName} ne ${body.subjectName || 'Subject'} che homework add kele ahe, krupaya bgha!`,
+        { type: "homework", homework_id: homework.id }
+      );
+    } catch (notifyError) {
+      console.error("Failed to send homework notification:", notifyError);
+    }
 
     return reply.status(201).send({
       message: "Homework added successfully",

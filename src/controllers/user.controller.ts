@@ -128,3 +128,30 @@ export const getAllStatistics = async (req: FastifyRequest, reply: FastifyReply)
     reply.status(500).send({ error: error.message });
   }
 };
+
+// Update FCM Token
+export const updateFcmToken = async (req: FastifyRequest, reply: FastifyReply) => {
+  try {
+    const userId = req.user?.user_id;
+    const { fcm_token } = req.body as { fcm_token: string };
+
+    if (!userId) {
+      return reply.status(401).send({ error: "Unauthorized" });
+    }
+
+    if (!fcm_token) {
+      return reply.status(400).send({ error: "FCM token is required" });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return reply.status(404).send({ error: "User not found" });
+    }
+
+    await user.update({ fcm_token });
+
+    reply.send({ message: "FCM token updated successfully" });
+  } catch (error: any) {
+    reply.status(500).send({ error: error.message });
+  }
+};

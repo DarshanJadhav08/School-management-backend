@@ -1,5 +1,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { NoticeService } from '../services/notice.service'
+import { NotificationService } from '../services/notification.service'
+import { User } from '../models'
 
 const service = new NoticeService()
 
@@ -12,6 +14,23 @@ export const createNotice = async (req: FastifyRequest, reply: FastifyReply) => 
   const body = req.body as any;
   const noticeData = { ...body, created_by: userId, client_id, is_active: true };
   const result = await service.createNotice(noticeData);
+
+  // Trigger Notification
+  try {
+    const creator = await User.findByPk(userId);
+    const rolePrefix = creator?.role_name || "Admin";
+    const creatorName = creator ? `${creator.first_name} ${creator.last_name}` : "School";
+
+    await NotificationService.sendToAll(
+      client_id,
+      "Naveen Notice Add Keli Ahe",
+      `${rolePrefix} ${creatorName} ne ek naveen notice post keli ahe: ${body.title}`,
+      { type: "notice", notice_id: result?.id }
+    );
+  } catch (notifyError) {
+    console.error("Failed to send notice notification:", notifyError);
+  }
+
   reply.status(201).send({ success: true, data: result });
 }
 

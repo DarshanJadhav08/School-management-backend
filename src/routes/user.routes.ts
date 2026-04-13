@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { getAllUsers, getUserById, updateUser, deleteUser, getUserStatistics, getAllStatistics } from "../controllers/user.controller";
+import { getAllUsers, getUserById, updateUser, deleteUser, getUserStatistics, getAllStatistics, updateFcmToken } from "../controllers/user.controller";
 import { authMiddleware } from "../middelware/auth.middleware";
 
 export default async function userRoutes(app: FastifyInstance) {
@@ -10,4 +10,5 @@ export default async function userRoutes(app: FastifyInstance) {
   app.get("/:id", { preHandler: [authMiddleware] }, getUserById);
   app.put("/:id", { preHandler: [authMiddleware] }, updateUser);
   app.delete("/:id", { preHandler: [authMiddleware] }, deleteUser);
+  app.patch("/fcm-token", { preHandler: [authMiddleware] }, updateFcmToken);
 }

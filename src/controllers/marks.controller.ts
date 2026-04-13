@@ -1,5 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import marksService from "../services/marks.service";
+import { Student, User } from "../models";
+import { NotificationService } from "../services/notification.service";
 
 class MarksController {
 
@@ -19,6 +21,25 @@ class MarksController {
       const totalObtained = subjects.reduce((sum: number, s: any) => sum + s.marks_obtained, 0);
       const totalMarks = subjects.reduce((sum: number, s: any) => sum + (s.total_marks || 100), 0);
       const overallPercentage = totalMarks > 0 ? ((totalObtained / totalMarks) * 100).toFixed(2) : '0.00';
+
+      // Trigger Notification
+      try {
+        const { client_id } = request.params as any;
+        const student = await Student.findOne({ 
+          where: { first_name: first_name, roll_number: roll_number } 
+        });
+        
+        if (student) {
+          await NotificationService.sendToUser(
+            student.get('user_id') as string,
+            "Naveen Marks/Result Add Zale Ahet",
+            `${exam_name || 'Exam'} che result declare zale ahet. Tumchi percentage: ${overallPercentage}%`,
+            { type: "marks", exam_name: exam_name }
+          );
+        }
+      } catch (notifyError) {
+        console.error("Failed to send marks notification:", notifyError);
+      }
 
       return reply.send({
         ...result,
@@ -109,6 +130,24 @@ class MarksController {
   async bulkSave(request: FastifyRequest, reply: FastifyReply) {
     try {
       const result = await marksService.bulkSave(request.body);
+      
+      // Trigger Notification for class
+      try {
+        const { classes } = request.body as any;
+        const { client_id } = request.params as any;
+        if (classes) {
+          await NotificationService.sendToClass(
+            client_id,
+            classes,
+            "Exam Results Update Zale Ahet",
+            `${classes} ya vargache naveen nikal (results) upload kelyat ahet.`,
+            { type: "marks_bulk" }
+          );
+        }
+      } catch (notifyError) {
+        console.error("Failed to send bulk marks notification:", notifyError);
+      }
+
       return reply.send(result);
     } catch (error: any) {
       return reply.status(500).send({ error: error.message });
