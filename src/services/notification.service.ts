@@ -8,8 +8,15 @@ let serviceAccount: any = null;
 
 try {
   if (process.env.FIREBASE_CONFIG) {
-    // If running on Render, use the environment variable
-    serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
+    const rawConfig = process.env.FIREBASE_CONFIG.trim();
+    if (rawConfig.startsWith('{')) {
+      // Standard JSON
+      serviceAccount = JSON.parse(rawConfig);
+    } else {
+      // Hope it's Base64
+      const decoded = Buffer.from(rawConfig, 'base64').toString('utf8');
+      serviceAccount = JSON.parse(decoded);
+    }
   } else {
     // Fallback to local file for development
     const serviceAccountPath = path.join(__dirname, "../config/serviceAccountKey.json");
