@@ -6,14 +6,30 @@ import { User, Student } from "../models";
 // Load configuration from Environment Variable (Render) or Local File
 let serviceAccount: any = null;
 
+const normalizePrivateKey = (key: string | undefined): string | undefined => {
+  if (!key) return undefined;
+  // 1. Replace literal \n (backslash + n) with real newlines
+  let normalized = key.replace(/\\n/g, '\n');
+  // 2. Remove all carriage returns (\r)
+  normalized = normalized.replace(/\r/g, '');
+  // 3. Ensure it starts and ends correctly
+  normalized = normalized.trim();
+  if (!normalized.startsWith('-----BEGIN PRIVATE KEY-----')) {
+    normalized = `-----BEGIN PRIVATE KEY-----\n${normalized}`;
+  }
+  if (!normalized.endsWith('-----END PRIVATE KEY-----')) {
+    normalized = `${normalized}\n-----END PRIVATE KEY-----`;
+  }
+  // 4. Final safety: ensure the string ends with a newline as some parsers require it
+  return normalized + '\n';
+};
+
 try {
   if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
     // Individual Env Vars (Most Robust)
-    let privateKey = process.env.FIREBASE_PRIVATE_KEY.trim().replace(/\\n/g, '\n');
+    let privateKey = normalizePrivateKey(process.env.FIREBASE_PRIVATE_KEY);
     
     console.log("Firebase config loaded from individual environment variables.");
-    console.log("Private Key Start:", privateKey.substring(0, 30));
-    console.log("Private Key End:", privateKey.substring(privateKey.length - 30));
     
     serviceAccount = {
       project_id: process.env.FIREBASE_PROJECT_ID,
@@ -42,16 +58,13 @@ try {
 
 if (serviceAccount && !admin.apps.length) {
   try {
-    let privateKey = serviceAccount.private_key;
-    if (typeof privateKey === 'string') {
-      privateKey = privateKey.replace(/\\n/g, '\n');
+    // Re-normalize even if loaded from JSON file
+    if (serviceAccount.private_key) {
+      serviceAccount.private_key = normalizePrivateKey(serviceAccount.private_key);
     }
 
     admin.initializeApp({
-      credential: admin.credential.cert({
-        ...serviceAccount,
-        private_key: privateKey,
-      }),
+      credential: admin.credential.cert(serviceAccount),
     });
     console.log("Firebase Admin SDK initialized successfully.");
   } catch (error) {
