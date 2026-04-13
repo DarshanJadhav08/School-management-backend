@@ -3,30 +3,43 @@ import path from "path";
 import fs from "fs";
 import { User, Student } from "../models";
 
-// Use absolute path and read file directly to avoid require() caching/mangling
-const serviceAccountPath = path.join(__dirname, "../config/serviceAccountKey.json");
-const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
+// Load configuration from Environment Variable (Render) or Local File
+let serviceAccount: any = null;
 
-if (!admin.apps.length) {
-  // Aggressive normalization: 
-  // 1. Replace literal \n strings with real newlines
-  // 2. Ensure the key has proper PEM header/footer spacing
-  let privateKey = serviceAccount.private_key;
-  if (typeof privateKey === 'string') {
-    privateKey = privateKey.replace(/\\n/g, '\n');
-    
-    // Sometimes keys are double-escaped or have weird spacing
-    if (!privateKey.includes('\n')) {
-      console.warn("Firebase Warning: No newlines found in private key, attempting fix.");
+try {
+  if (process.env.FIREBASE_CONFIG) {
+    // If running on Render, use the environment variable
+    serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
+  } else {
+    // Fallback to local file for development
+    const serviceAccountPath = path.join(__dirname, "../config/serviceAccountKey.json");
+    if (fs.existsSync(serviceAccountPath)) {
+      serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
     }
   }
+} catch (error) {
+  console.error("Firebase Config Error:", error);
+}
 
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      ...serviceAccount,
-      private_key: privateKey,
-    }),
-  });
+if (serviceAccount && !admin.apps.length) {
+  try {
+    let privateKey = serviceAccount.private_key;
+    if (typeof privateKey === 'string') {
+      privateKey = privateKey.replace(/\\n/g, '\n');
+    }
+
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        ...serviceAccount,
+        private_key: privateKey,
+      }),
+    });
+    console.log("Firebase Admin SDK initialized successfully.");
+  } catch (error) {
+    console.error("Firebase Initialization Error:", error);
+  }
+} else if (!serviceAccount) {
+  console.warn("Firebase Warning: No service account found. Notifications will be disabled.");
 }
 
 export const NotificationService = {
