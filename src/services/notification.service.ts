@@ -6,28 +6,31 @@ import { User, Student } from "../models";
 // Load configuration from Environment Variable (Render) or Local File
 let serviceAccount: any = null;
 
-const normalizePrivateKey = (key: string | undefined): string | undefined => {
+const reconstructPEM = (key: string | undefined): string | undefined => {
   if (!key) return undefined;
-  // 1. Replace literal \n (backslash + n) with real newlines
-  let normalized = key.replace(/\\n/g, '\n');
-  // 2. Remove all carriage returns (\r)
-  normalized = normalized.replace(/\r/g, '');
-  // 3. Ensure it starts and ends correctly
-  normalized = normalized.trim();
-  if (!normalized.startsWith('-----BEGIN PRIVATE KEY-----')) {
-    normalized = `-----BEGIN PRIVATE KEY-----\n${normalized}`;
-  }
-  if (!normalized.endsWith('-----END PRIVATE KEY-----')) {
-    normalized = `${normalized}\n-----END PRIVATE KEY-----`;
-  }
-  // 4. Final safety: ensure the string ends with a newline as some parsers require it
-  return normalized + '\n';
+  
+  // 1. Remove Headers and Footers if they exist
+  let raw = key.replace(/-----BEGIN PRIVATE KEY-----/g, '')
+                 .replace(/-----END PRIVATE KEY-----/g, '')
+                 .replace(/\\n/g, '')
+                 .replace(/\s/g, ''); // Remove all whitespace, newlines, and literal \n
+
+  // 2. Extract only valid Base64 characters (Safety check)
+  const base64Match = raw.match(/[A-Za-z0-9+/=]+/g);
+  if (!base64Match) return undefined;
+  raw = base64Match.join('');
+
+  // 3. Chunk into 64-character lines (Standard PEM format)
+  const lines = raw.match(/.{1,64}/g) || [];
+  
+  // 4. Rebuild the PEM
+  return `-----BEGIN PRIVATE KEY-----\n${lines.join('\n')}\n-----END PRIVATE KEY-----\n`;
 };
 
 try {
   if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
     // Individual Env Vars (Most Robust)
-    let privateKey = normalizePrivateKey(process.env.FIREBASE_PRIVATE_KEY);
+    let privateKey = reconstructPEM(process.env.FIREBASE_PRIVATE_KEY);
     
     console.log("Firebase config loaded from individual environment variables.");
     
@@ -60,7 +63,7 @@ if (serviceAccount && !admin.apps.length) {
   try {
     // Re-normalize even if loaded from JSON file
     if (serviceAccount.private_key) {
-      serviceAccount.private_key = normalizePrivateKey(serviceAccount.private_key);
+      serviceAccount.private_key = reconstructPEM(serviceAccount.private_key);
     }
 
     admin.initializeApp({
