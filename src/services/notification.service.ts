@@ -7,13 +7,20 @@ import { User, Student } from "../models";
 let serviceAccount: any = null;
 
 try {
-  if (process.env.FIREBASE_CONFIG) {
+  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
+    // Individual Env Vars (Most Robust)
+    serviceAccount = {
+      project_id: process.env.FIREBASE_PROJECT_ID,
+      private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      client_email: process.env.FIREBASE_CLIENT_EMAIL,
+    };
+    console.log("Firebase config loaded from individual environment variables.");
+  } else if (process.env.FIREBASE_CONFIG) {
+    // Legacy JSON/Base64 support
     const rawConfig = process.env.FIREBASE_CONFIG.trim();
     if (rawConfig.startsWith('{')) {
-      // Standard JSON
       serviceAccount = JSON.parse(rawConfig);
     } else {
-      // Hope it's Base64
       const decoded = Buffer.from(rawConfig, 'base64').toString('utf8');
       serviceAccount = JSON.parse(decoded);
     }
