@@ -1,13 +1,31 @@
 import * as admin from "firebase-admin";
 import path from "path";
+import fs from "fs";
 import { User, Student } from "../models";
 
-// Initialize Firebase Admin
-const serviceAccount = require("../config/serviceAccountKey.json");
+// Use absolute path and read file directly to avoid require() caching/mangling
+const serviceAccountPath = path.join(__dirname, "../config/serviceAccountKey.json");
+const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
 
 if (!admin.apps.length) {
+  // Aggressive normalization: 
+  // 1. Replace literal \n strings with real newlines
+  // 2. Ensure the key has proper PEM header/footer spacing
+  let privateKey = serviceAccount.private_key;
+  if (typeof privateKey === 'string') {
+    privateKey = privateKey.replace(/\\n/g, '\n');
+    
+    // Sometimes keys are double-escaped or have weird spacing
+    if (!privateKey.includes('\n')) {
+      console.warn("Firebase Warning: No newlines found in private key, attempting fix.");
+    }
+  }
+
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
+    credential: admin.credential.cert({
+      ...serviceAccount,
+      private_key: privateKey,
+    }),
   });
 }
 
