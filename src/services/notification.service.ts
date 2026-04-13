@@ -9,7 +9,7 @@ let serviceAccount: any = null;
 try {
   if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
     // Individual Env Vars (Most Robust)
-    let privateKey = process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n');
+    let privateKey = process.env.FIREBASE_PRIVATE_KEY.trim().replace(/\\n/g, '\n');
     
     console.log("Firebase config loaded from individual environment variables.");
     console.log("Private Key Start:", privateKey.substring(0, 30));
