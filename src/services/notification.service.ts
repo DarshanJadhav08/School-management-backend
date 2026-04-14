@@ -119,11 +119,11 @@ export const NotificationService = {
    */
   async sendToClass(clientId: string, standard: string, title: string, body: string, data?: any) {
     try {
-      // Robust Class Matching: Extract digits to handle variations like "5", "5th", "5th class"
+      // 1. Precise Match with Variations
       const getDigits = (s: string) => s.toString().replace(/\D/g, '');
       const digits = getDigits(standard);
       
-      const standardVariations = [standard];
+      const standardVariations = [standard.trim(), standard.trim().toLowerCase(), standard.trim().toUpperCase()];
       if (digits && digits !== standard) {
         standardVariations.push(digits);
         standardVariations.push(`${digits}th`);
@@ -136,18 +136,37 @@ export const NotificationService = {
         standardVariations.push(`${digits}TH`);
       }
 
-      console.log(`[NotificationService] Attempting delivery with standard variations: ${standardVariations.join(', ')} for client: ${clientId}`);
+      console.log(`[NotificationService] Delivering for Standard: "${standard}" (Variations: ${[...new Set(standardVariations)].join(', ')}) for Client: ${clientId}`);
 
-      // Find all students in this class
-      const students = await Student.findAll({
+      // Find all students in this class - Use Op.iLike for case-insensitivity and trim for safety
+      let students = await Student.findAll({
         where: { 
           client_id: clientId, 
-          standard: { [Op.or]: standardVariations } 
+          standard: { [Op.or]: standardVariations.map(v => ({ [Op.iLike]: v })) } 
         },
         include: [{ model: User, as: "user" }],
       });
 
-      console.log(`[NotificationService] Match found for ${students.length} students in class ${standard}.`);
+      // 2. Broad Fallback: If no students found, try simple digit matching
+      if (students.length === 0 && digits) {
+        console.log(`[NotificationService] No precise match found for "${standard}". Trying broad fallback with digits: "${digits}"`);
+        students = await Student.findAll({
+          where: { 
+            client_id: clientId, 
+            standard: { [Op.iLike]: `%${digits}%` } 
+          },
+          include: [{ model: User, as: "user" }],
+        });
+      }
+
+      console.log(`[NotificationService] Final match count: ${students.length} students found.`);
+      
+      if (students.length === 0) {
+        // Diagnostic: Log a few students from this client to see their standard format
+        const sampleStudents = await Student.findAll({ where: { client_id: clientId }, limit: 5 });
+        const existingStandards = sampleStudents.map(s => s.get('standard')).join(', ');
+        console.warn(`[NotificationService] [DIAGNOSTIC] Client ${clientId} has students with standards: [${existingStandards}]`);
+      }
 
       // 1. Multi-save to Database
       const notificationRecords = students.map((s: any) => {
