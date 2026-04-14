@@ -102,7 +102,7 @@ export const signupService = async (data: SignupData, createdBy?: string) => {
   };
 };
 
-export const loginService = async (uniqueIdOrPhone: string, password: string) => {
+export const loginService = async (uniqueIdOrPhone: string, password: string, fcmToken?: string) => {
   if (!uniqueIdOrPhone || !password) {
     const error: any = new Error("Registration ID and password are required");
     error.statusCode = 400;
@@ -126,6 +126,11 @@ export const loginService = async (uniqueIdOrPhone: string, password: string) =>
     const error: any = new Error("Incorrect password. Please check your password and try again.");
     error.statusCode = 401;
     throw error;
+  }
+
+  // Update FCM Token if provided
+  if (fcmToken) {
+    await user.update({ fcm_token: fcmToken });
   }
 
   const tokens = generateTokens(user.id, user.role_id, user.role_name, user.client_id);
