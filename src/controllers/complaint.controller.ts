@@ -48,7 +48,7 @@ export const createComplaintController = async (req: any, reply: FastifyReply) =
         client_id,
         "Naveen Takrar (Complaint) Aali Ahe",
         `${studentName} ne ek naveen takrar file keli ahe: ${title}`,
-        { type: "complaint", complaint_id: complaint.id }
+        { type: "complaint", complaint_id: (complaint as any).id }
       );
     } catch (notifyError) {
       console.error("Failed to send complaint notification:", notifyError);

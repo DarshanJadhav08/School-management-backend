@@ -62,7 +62,7 @@ export const addHomeworkController = async (
           targetClass,
           "Naveen Homework Add Kele Ahe",
           `${teacherName} ne ${body.subjectName || 'Subject'} che homework add kele ahe, krupaya bgha!`,
-          { type: "homework", homework_id: homework.id }
+          { type: "homework", homework_id: (homework as any).id }
         );
       }
     } catch (notifyError) {

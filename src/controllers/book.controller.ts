@@ -34,7 +34,7 @@ export const addBookController = async (
         body.class_name || body.standard,
         "Naveen Pustak (Book) Upload Kele Ahe",
         `${creatorName} ne ek naveen pustak upload kele ahe: ${body.book_name}`,
-        { type: "book", book_id: book.id }
+        { type: "book", book_id: (book as any).id }
       );
     } catch (notifyError) {
       console.error("Failed to send book notification:", notifyError);
