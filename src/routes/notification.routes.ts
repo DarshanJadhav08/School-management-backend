@@ -3,10 +3,9 @@ import {
   getNotificationsController, 
   markAsReadController 
 } from "../controllers/notification.controller";
+import { authMiddleware } from "../middelware/auth.middleware";
 
 export default async function notificationRoutes(fastify: FastifyInstance) {
-  fastify.addHook("preHandler", fastify.authenticate);
-
-  fastify.get("/", getNotificationsController);
-  fastify.patch("/:id/read", markAsReadController);
+  fastify.get("/", { preHandler: [authMiddleware] }, getNotificationsController);
+  fastify.patch("/:id/read", { preHandler: [authMiddleware] }, markAsReadController);
 }
