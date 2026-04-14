@@ -26,7 +26,7 @@ export const createNotice = async (req: FastifyRequest, reply: FastifyReply) => 
       "New Notice Posted",
       `${rolePrefix} ${creatorName} has posted a new notice: ${body.title}. Open the app to view.`,
       { type: "notice", notice_id: result?.id },
-      userId // pass creator explicitly to exclude from push
+      String(userId) // cast to String to fix build error
     );
   } catch (notifyError) {
     console.error("Failed to send notice notification:", notifyError);
