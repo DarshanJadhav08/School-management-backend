@@ -44,7 +44,7 @@ export const createComplaintController = async (req: any, reply: FastifyReply) =
     // Trigger Notification for Admin
     try {
       const studentName = `${req.user?.first_name} ${req.user?.last_name}` || "A Student";
-      await NotificationService.sendToAll(
+      await NotificationService.sendToAdmins(
         client_id,
         "Naveen Takrar (Complaint) Aali Ahe",
         `${studentName} ne ek naveen takrar file keli ahe: ${title}`,

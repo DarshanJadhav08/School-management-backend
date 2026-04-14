@@ -168,13 +168,42 @@ export const NotificationService = {
         console.warn(`[NotificationService] [DIAGNOSTIC] Client ${clientId} has students with standards: [${existingStandards}]`);
       }
 
+      // Fetch Admins for this school to keep them updated
+      const adminUsers = await User.findAll({
+        where: {
+          client_id: clientId,
+          role_name: { [Op.in]: ['admin', 'superadmin', 'system admin'] }
+        }
+      });
+
+      // Consolidate all unique recipients (Students + Admins)
+      const recipients = new Map<string, { fcm_token: string | null, role_name: string }>();
+
+      // Load Students
+      for (const s of students as any[]) {
+        const uid = s.user?.id || s.user_id;
+        if (uid) {
+          recipients.set(uid, { fcm_token: s.user?.fcm_token || null, role_name: s.user?.role_name || 'student' });
+        }
+      }
+
+      // Load Admins
+      for (const adminUser of adminUsers) {
+        if (adminUser.id) {
+          recipients.set(adminUser.id as string, { 
+            fcm_token: adminUser.fcm_token || null, 
+            role_name: adminUser.role_name || 'admin' 
+          });
+        }
+      }
+
+      console.log(`[NotificationService] Final Recipient Count: ${recipients.size} (Students + Admins).`);
+
       // 1. Multi-save to Database
-      const notificationRecords = students.map((s: any) => {
-        const studentUserId = s.user?.id || s.user_id;
-        console.log(`[NotificationService] Preparing record for user: ${studentUserId} (Role: ${s.user?.role_name || 'unknown'})`);
+      const notificationRecords = Array.from(recipients.entries()).map(([uid, info]) => {
         return {
           client_id: clientId,
-          user_id: studentUserId,
+          user_id: uid,
           title,
           body,
           type: data?.type || 'general',
@@ -188,16 +217,16 @@ export const NotificationService = {
       }
 
       // 2. Prepare FCM tokens
-      const tokens = students
-        .map((s: any) => s.user?.fcm_token)
-        .filter((t) => t != null);
+      const tokens = Array.from(recipients.values())
+        .map((info) => info.fcm_token)
+        .filter((t): t is string => typeof t === 'string' && t.trim() !== "");
 
       if (tokens.length === 0) {
-        console.log(`[NotificationService] No FCM tokens found for class ${standard}. Saved to history only.`);
+        console.log(`[NotificationService] No valid FCM tokens found for class ${standard} + Admins. Saved to history only.`);
         return;
       }
 
-      console.log(`[NotificationService] Sending FCM to class ${standard} (${tokens.length} tokens).`);
+      console.log(`[NotificationService] Sending FCM to ${tokens.length} devices.`);
 
       const message: admin.messaging.MulticastMessage = {
         notification: { title, body },
@@ -249,6 +278,49 @@ export const NotificationService = {
       await admin.messaging().sendEachForMulticast(message);
     } catch (error) {
       console.error("Error in sendToAll:", error);
+    }
+  },
+
+  /**
+   * Send notification strictly to Administrative staff (Admin, Superadmin)
+   */
+  async sendToAdmins(clientId: string, title: string, body: string, data?: any) {
+    try {
+      const admins = await User.findAll({
+        where: { 
+          client_id: clientId,
+          role_name: { [Op.in]: ['admin', 'superadmin', 'system admin'] }
+        },
+        attributes: ["id", "fcm_token"],
+      });
+
+      if (admins.length === 0) return;
+
+      // 1. Multi-save to Database
+      const notificationRecords = admins.map((u) => ({
+        client_id: clientId,
+        user_id: u.id,
+        title,
+        body,
+        type: data?.type || 'general',
+        data: data || {},
+      }));
+      await Notification.bulkCreate(notificationRecords);
+
+      // 2. Filter tokens
+      const tokens = admins.map((u) => u.fcm_token).filter((t) => typeof t === 'string' && t.trim() !== "") as string[];
+
+      if (tokens.length === 0) return;
+
+      const message: admin.messaging.MulticastMessage = {
+        notification: { title, body },
+        tokens: tokens,
+        data: data || {},
+      };
+
+      await admin.messaging().sendEachForMulticast(message);
+    } catch (error) {
+      console.error("Error in sendToAdmins:", error);
     }
   }
 };
