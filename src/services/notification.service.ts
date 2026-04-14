@@ -2,6 +2,8 @@ import * as admin from "firebase-admin";
 import path from "path";
 import fs from "fs";
 import { User, Student, Notification } from "../models";
+import { Op } from "sequelize";
+
 
 // Load configuration from Environment Variable (Render) or Local File
 let serviceAccount: any = null;
@@ -117,16 +119,35 @@ export const NotificationService = {
    */
   async sendToClass(clientId: string, standard: string, title: string, body: string, data?: any) {
     try {
+      // Robust Class Matching: Extract digits to handle variations like "5", "5th", "5th class"
+      const getDigits = (s: string) => s.toString().replace(/\D/g, '');
+      const digits = getDigits(standard);
+      
+      const standardVariations = [standard];
+      if (digits && digits !== standard) {
+        standardVariations.push(digits);
+        standardVariations.push(`${digits}th`);
+        standardVariations.push(`${digits}ST`);
+        standardVariations.push(`${digits}ND`);
+        standardVariations.push(`${digits}RD`);
+        standardVariations.push(`${digits}st`);
+        standardVariations.push(`${digits}nd`);
+        standardVariations.push(`${digits}rd`);
+        standardVariations.push(`${digits}TH`);
+      }
+
+      console.log(`[NotificationService] Attempting delivery with standard variations: ${standardVariations.join(', ')} for client: ${clientId}`);
+
       // Find all students in this class
       const students = await Student.findAll({
-        where: { client_id: clientId, standard: standard },
+        where: { 
+          client_id: clientId, 
+          standard: { [Op.or]: standardVariations } 
+        },
         include: [{ model: User, as: "user", attributes: ["id", "fcm_token"] }],
       });
 
-      if (students.length === 0) {
-        console.log(`[NotificationService] No students found for class ${standard} in client ${clientId}`);
-        return;
-      }
+      console.log(`[NotificationService] Match found for ${students.length} students in class ${standard}.`);
 
       // 1. Multi-save to Database
       const notificationRecords = students.map((s: any) => ({
