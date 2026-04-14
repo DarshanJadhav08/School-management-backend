@@ -41,7 +41,7 @@ app.register(multipart, {
 connectDB()
   .then(() => {
     app.log.info("Database connected");
-    return sequelize.sync({ alter: false });
+    return sequelize.sync({ alter: true });
   })
   .then(() => {
     app.log.info("Models synced");

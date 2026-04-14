@@ -9,9 +9,9 @@ export class Notification
   extends Model<NotificationAttributes, NotificationCreationAttributes>
   implements NotificationAttributes {
 
-  public id!: string;
+  public id!: number;
   public client_id!: string;
-  public receiver_id!: string;
+  public user_id!: string;
   public title!: string;
   public body!: string;
   public type!: string;
@@ -25,15 +25,15 @@ export class Notification
 Notification.init(
   {
     id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
       primaryKey: true
     },
     client_id: {
       type: DataTypes.UUID,
       allowNull: true
     },
-    receiver_id: {
+    user_id: {
       type: DataTypes.UUID,
       allowNull: false,
       references: {

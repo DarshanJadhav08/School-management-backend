@@ -15,7 +15,7 @@ import { Notification } from "./notification.model";
 // User relationships
 User.belongsTo(Role, { foreignKey: "role_id" });
 User.belongsTo(Client, { foreignKey: "client_id" });
-User.hasMany(Notification, { foreignKey: "receiver_id", as: "notifications" });
+User.hasMany(Notification, { foreignKey: "user_id", as: "notifications" });
 
 // Student relationships
 Student.belongsTo(User, { foreignKey: "user_id", as: "user", onDelete: "CASCADE" });
@@ -51,7 +51,7 @@ Timetable.belongsTo(Teacher, { foreignKey: "teacher_id", as: "teacher" });
 Timetable.belongsTo(Client, { foreignKey: "client_id", as: "client" });
 
 // Notification relationships
-Notification.belongsTo(User, { foreignKey: "receiver_id", as: "receiver" });
+Notification.belongsTo(User, { foreignKey: "user_id", as: "receiver" });
 Notification.belongsTo(Client, { foreignKey: "client_id", as: "client" });
 
 export {

@@ -1,7 +1,7 @@
 export interface NotificationAttributes {
-  id: string;
+  id: number;
   client_id?: string;
-  receiver_id: string;
+  user_id: string;
   title: string;
   body: string;
   type: string;

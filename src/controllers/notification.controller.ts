@@ -9,7 +9,7 @@ export const getNotificationsController = async (req: FastifyRequest, reply: Fas
     const offset = (Number(page) - 1) * Number(limit);
 
     const { count, rows } = await Notification.findAndCountAll({
-      where: { receiver_id: userId },
+      where: { user_id: userId },
       order: [['created_at', 'DESC']],
       limit: Number(limit),
       offset: Number(offset),
@@ -35,7 +35,7 @@ export const markAsReadController = async (req: FastifyRequest, reply: FastifyRe
     const userId = req.user?.user_id as string;
 
     const notification = await Notification.findOne({
-      where: { id, receiver_id: userId }
+      where: { id, user_id: userId }
     });
 
     if (!notification) {

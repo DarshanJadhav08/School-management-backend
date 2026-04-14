@@ -85,7 +85,7 @@ export const NotificationService = {
     try {
       // 1. Save to Database for history
       await Notification.create({
-        receiver_id: userId,
+        user_id: userId,
         title,
         body,
         type: data?.type || 'general',
@@ -131,7 +131,7 @@ export const NotificationService = {
       // 1. Multi-save to Database
       const notificationRecords = students.map((s: any) => ({
         client_id: clientId,
-        receiver_id: s.user_id,
+        user_id: s.user_id,
         title,
         body,
         type: data?.type || 'general',
@@ -179,7 +179,7 @@ export const NotificationService = {
       // 1. Multi-save to Database
       const notificationRecords = users.map((u) => ({
         client_id: clientId,
-        receiver_id: u.id,
+        user_id: u.id,
         title,
         body,
         type: data?.type || 'general',
