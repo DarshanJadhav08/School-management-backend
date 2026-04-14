@@ -144,21 +144,29 @@ export const NotificationService = {
           client_id: clientId, 
           standard: { [Op.or]: standardVariations } 
         },
-        include: [{ model: User, as: "user", attributes: ["id", "fcm_token"] }],
+        include: [{ model: User, as: "user" }],
       });
 
       console.log(`[NotificationService] Match found for ${students.length} students in class ${standard}.`);
 
       // 1. Multi-save to Database
-      const notificationRecords = students.map((s: any) => ({
-        client_id: clientId,
-        user_id: s.user_id,
-        title,
-        body,
-        type: data?.type || 'general',
-        data: data || {},
-      }));
-      await Notification.bulkCreate(notificationRecords);
+      const notificationRecords = students.map((s: any) => {
+        const studentUserId = s.user?.id || s.user_id;
+        console.log(`[NotificationService] Preparing record for user: ${studentUserId} (Role: ${s.user?.role_name || 'unknown'})`);
+        return {
+          client_id: clientId,
+          user_id: studentUserId,
+          title,
+          body,
+          type: data?.type || 'general',
+          data: data || {},
+        };
+      });
+      
+      if (notificationRecords.length > 0) {
+        await Notification.bulkCreate(notificationRecords);
+        console.log(`[NotificationService] Successfully saved ${notificationRecords.length} records to history.`);
+      }
 
       // 2. Prepare FCM tokens
       const tokens = students
