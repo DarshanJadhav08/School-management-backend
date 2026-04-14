@@ -1,7 +1,7 @@
 import * as admin from "firebase-admin";
 import path from "path";
 import fs from "fs";
-import { User, Student } from "../models";
+import { User, Student, Notification } from "../models";
 
 // Load configuration from Environment Variable (Render) or Local File
 let serviceAccount: any = null;
@@ -83,9 +83,19 @@ export const NotificationService = {
    */
   async sendToUser(userId: string, title: string, body: string, data?: any) {
     try {
+      // 1. Save to Database for history
+      await Notification.create({
+        receiver_id: userId,
+        title,
+        body,
+        type: data?.type || 'general',
+        data: data || {},
+      });
+
+      // 2. Send FCM
       const user = await User.findByPk(userId);
       if (!user || !user.fcm_token) {
-        console.log(`User ${userId} has no FCM token. Skipping notification.`);
+        console.log(`User ${userId} has no FCM token. Skipping FCM but saved to history.`);
         return;
       }
 
@@ -98,7 +108,7 @@ export const NotificationService = {
       const response = await admin.messaging().send(message);
       console.log(`Successfully sent message to user ${userId}:`, response);
     } catch (error) {
-      console.error(`Error sending message to user ${userId}:`, error);
+      console.error(`Error in sendToUser for user ${userId}:`, error);
     }
   },
 
@@ -113,14 +123,33 @@ export const NotificationService = {
         include: [{ model: User, as: "user", attributes: ["id", "fcm_token"] }],
       });
 
+      if (students.length === 0) {
+        console.log(`[NotificationService] No students found for class ${standard} in client ${clientId}`);
+        return;
+      }
+
+      // 1. Multi-save to Database
+      const notificationRecords = students.map((s: any) => ({
+        client_id: clientId,
+        receiver_id: s.user_id,
+        title,
+        body,
+        type: data?.type || 'general',
+        data: data || {},
+      }));
+      await Notification.bulkCreate(notificationRecords);
+
+      // 2. Prepare FCM tokens
       const tokens = students
         .map((s: any) => s.user?.fcm_token)
         .filter((t) => t != null);
 
       if (tokens.length === 0) {
-        console.log(`No FCM tokens found for class ${standard} in client ${clientId}`);
+        console.log(`[NotificationService] No FCM tokens found for class ${standard}. Saved to history only.`);
         return;
       }
+
+      console.log(`[NotificationService] Sending FCM to class ${standard} (${tokens.length} tokens).`);
 
       const message: admin.messaging.MulticastMessage = {
         notification: { title, body },
@@ -129,9 +158,9 @@ export const NotificationService = {
       };
 
       const response = await admin.messaging().sendEachForMulticast(message);
-      console.log(`Successfully sent multicast message to ${response.successCount} devices.`);
+      console.log(`[NotificationService] Multicast result: ${response.successCount} success, ${response.failureCount} failure.`);
     } catch (error) {
-      console.error("Error sending multicast message:", error);
+      console.error("[NotificationService] Error in sendToClass:", error);
     }
   },
 
@@ -142,9 +171,23 @@ export const NotificationService = {
     try {
       const users = await User.findAll({
         where: { client_id: clientId },
-        attributes: ["fcm_token"],
+        attributes: ["id", "fcm_token"],
       });
 
+      if (users.length === 0) return;
+
+      // 1. Multi-save to Database
+      const notificationRecords = users.map((u) => ({
+        client_id: clientId,
+        receiver_id: u.id,
+        title,
+        body,
+        type: data?.type || 'general',
+        data: data || {},
+      }));
+      await Notification.bulkCreate(notificationRecords);
+
+      // 2. Filter tokens
       const tokens = users.map((u) => u.fcm_token).filter((t) => t != null) as string[];
 
       if (tokens.length === 0) return;
@@ -157,7 +200,7 @@ export const NotificationService = {
 
       await admin.messaging().sendEachForMulticast(message);
     } catch (error) {
-      console.error("Error sending school-wide notification:", error);
+      console.error("Error in sendToAll:", error);
     }
   }
 };
