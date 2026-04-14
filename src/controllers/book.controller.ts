@@ -5,7 +5,8 @@ import {
   updateBookService,
   deleteBookService,
 } from "../services/book.service";
-import { Student } from "../models/student.model";
+import { Student, User, Notification } from "../models";
+import { NotificationService } from "../services/notification.service";
 
 export const addBookController = async (
   req: FastifyRequest,
@@ -22,6 +23,22 @@ export const addBookController = async (
     }
 
     const book = await addBookService({ ...body, client_id }, userId);
+
+    // Trigger Notification
+    try {
+      const creator = await User.findByPk(userId);
+      const creatorName = creator ? `${creator.first_name} ${creator.last_name}` : "Teacher";
+      
+      await NotificationService.sendToClass(
+        client_id,
+        body.class_name || body.standard,
+        "Naveen Pustak (Book) Upload Kele Ahe",
+        `${creatorName} ne ek naveen pustak upload kele ahe: ${body.book_name}`,
+        { type: "book", book_id: book.id }
+      );
+    } catch (notifyError) {
+      console.error("Failed to send book notification:", notifyError);
+    }
 
     return reply.status(201).send({
       message: "Book uploaded successfully",

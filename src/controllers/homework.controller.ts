@@ -54,13 +54,17 @@ export const addHomeworkController = async (
       const teacherUser = await User.findByPk(userId);
       const teacherName = teacherUser ? `${teacherUser.first_name} ${teacherUser.last_name}` : "Teacher";
       
-      await NotificationService.sendToClass(
-        client_id,
-        body.className || body.standard,
-        "Naveen Homework Add Kele Ahe",
-        `${teacherName} ne ${body.subjectName || 'Subject'} che homework add kele ahe, krupaya bgha!`,
-        { type: "homework", homework_id: homework.id }
-      );
+      const targetClass = body.class_name || body.className || body.standard;
+      
+      if (targetClass) {
+        await NotificationService.sendToClass(
+          client_id,
+          targetClass,
+          "Naveen Homework Add Kele Ahe",
+          `${teacherName} ne ${body.subjectName || 'Subject'} che homework add kele ahe, krupaya bgha!`,
+          { type: "homework", homework_id: homework.id }
+        );
+      }
     } catch (notifyError) {
       console.error("Failed to send homework notification:", notifyError);
     }

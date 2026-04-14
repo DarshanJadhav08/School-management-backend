@@ -263,8 +263,12 @@ export const bulkCreateAttendancesController = async (req: any, reply: FastifyRe
     // Trigger Notification for class-wide attendance
     try {
       const date = req.body.attendances?.[0]?.date || new Date().toISOString().split('T')[0];
-      const studentsInBatch = await Student.findOne({ where: { id: req.body.attendances?.[0]?.student_id } });
-      const standard = studentsInBatch?.get('standard');
+      let standard = req.body.class_name;
+      
+      if (!standard) {
+        const studentsInBatch = await Student.findOne({ where: { id: req.body.attendances?.[0]?.student_id } });
+        standard = studentsInBatch?.get('standard');
+      }
 
       if (standard) {
         await NotificationService.sendToClass(
