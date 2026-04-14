@@ -32,9 +32,10 @@ export const addBookController = async (
       await NotificationService.sendToClass(
         client_id,
         body.class_name || body.standard,
-        "Naveen Pustak (Book) Upload Kele Ahe",
-        `${creatorName} ne ek naveen pustak upload kele ahe: ${body.book_name}`,
-        { type: "book", book_id: (book as any).id }
+        "New Study Material Available",
+        `${creatorName} has uploaded a new book: "${body.book_name}". Open the app to view it.`,
+        { type: "book", book_id: (book as any).id },
+        userId // exclude creator
       );
     } catch (notifyError) {
       console.error("Failed to send book notification:", notifyError);

@@ -60,9 +60,10 @@ export const addHomeworkController = async (
         await NotificationService.sendToClass(
           client_id,
           targetClass,
-          "Naveen Homework Add Kele Ahe",
-          `${teacherName} ne ${body.subjectName || 'Subject'} che homework add kele ahe, krupaya bgha!`,
-          { type: "homework", homework_id: (homework as any).id }
+          "New Homework Assigned",
+          `${teacherName} has assigned new ${body.subjectName || 'Subject'} homework. Please check the app for details.`,
+          { type: "homework", homework_id: (homework as any).id },
+          userId // pass the creator user ID
         );
       }
     } catch (notifyError) {

@@ -53,11 +53,11 @@ export const createAttendanceController = async (req: any, reply: FastifyReply) 
     try {
       if (status === 'Absent' || status === 'Late') {
         const student = await Student.findByPk(student_id);
-        const title = status === 'Absent' ? "Aaj tumhi Absent ahat" : "Aaj tumhala USHIR (Late) zala ahe";
+        const title = status === 'Absent' ? "Attendance Alert: Marked Absent" : "Attendance Alert: Marked Late";
         await NotificationService.sendToUser(
           student?.get('user_id') as string,
           title,
-          `App madhe tumchi hazari (attendance) '${status}' mhanun mark keli ahe.`,
+          `Your attendance has been marked as '${status}' for today. Please contact your teacher if this is incorrect.`,
           { type: "attendance", status: status }
         );
       }
@@ -274,8 +274,8 @@ export const bulkCreateAttendancesController = async (req: any, reply: FastifyRe
         await NotificationService.sendToClass(
           client_id as string,
           standard as string,
-          "Daily Attendance Mark Keli Ahe",
-          `Aajchi (${date}) hazari mark keli ahe. Krupaya tumcha status check kara.`,
+          "Attendance Recorded",
+          `Today's (${date}) attendance has been marked. Please open the app to check your attendance status.`,
           { type: "attendance_batch", date: date }
         );
       }

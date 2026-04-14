@@ -18,7 +18,9 @@ export const timetableRepository = {
   async findByDay(client_id: string, day: string, standard?: string, division?: string) {
     const where: any = { client_id, day };
     if (standard) where.standard = standard;
-    if (division) where.division = division;
+    if (division) {
+      where.division = { [Op.or]: [division, "", null] };
+    }
     return Timetable.findAll({
       where,
       include: [{ model: Teacher, as: "teacher", attributes: ["id", "first_name", "middle_name", "last_name"] }],
@@ -36,7 +38,9 @@ export const timetableRepository = {
       ],
     };
     if (standard) where.standard = standard;
-    if (division) where.division = division;
+    if (division) {
+      where.division = { [Op.or]: [division, "", null] };
+    }
     return Timetable.findAll({
       where,
       include: [{ model: Teacher, as: "teacher", attributes: ["id", "first_name", "middle_name", "last_name"] }],
@@ -47,7 +51,9 @@ export const timetableRepository = {
   async findAll(client_id: string, standard?: string, division?: string) {
     const where: any = { client_id };
     if (standard) where.standard = standard;
-    if (division) where.division = division;
+    if (division) {
+      where.division = { [Op.or]: [division, "", null] };
+    }
     return Timetable.findAll({
       where,
       include: [{ model: Teacher, as: "teacher", attributes: ["id", "first_name", "middle_name", "last_name"] }],

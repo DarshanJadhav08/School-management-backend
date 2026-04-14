@@ -23,9 +23,10 @@ export const createNotice = async (req: FastifyRequest, reply: FastifyReply) => 
 
     await NotificationService.sendToAll(
       client_id,
-      "Naveen Notice Add Keli Ahe",
-      `${rolePrefix} ${creatorName} ne ek naveen notice post keli ahe: ${body.title}`,
-      { type: "notice", notice_id: result?.id }
+      "New Notice Posted",
+      `${rolePrefix} ${creatorName} has posted a new notice: ${body.title}. Open the app to view.`,
+      { type: "notice", notice_id: result?.id },
+      userId // pass creator explicitly to exclude from push
     );
   } catch (notifyError) {
     console.error("Failed to send notice notification:", notifyError);

@@ -46,8 +46,8 @@ export const createComplaintController = async (req: any, reply: FastifyReply) =
       const studentName = `${req.user?.first_name} ${req.user?.last_name}` || "A Student";
       await NotificationService.sendToAdmins(
         client_id,
-        "Naveen Takrar (Complaint) Aali Ahe",
-        `${studentName} ne ek naveen takrar file keli ahe: ${title}`,
+        "New Complaint Submitted",
+        `${studentName} has filed a new complaint: "${title}". Please review it in the admin panel.`,
         { type: "complaint", complaint_id: (complaint as any).id }
       );
     } catch (notifyError) {
@@ -131,8 +131,8 @@ export const addResponseController = async (req: any, reply: FastifyReply) => {
       if (fullComplaint?.student?.user_id) {
         await NotificationService.sendToUser(
           fullComplaint.student.user_id,
-          "Tumchya Takrarila Uttar Milele Ahe",
-          `Admin ne tumchya '${fullComplaint.title || 'Complaint'}' var pratikriya dili ahe.`,
+          "Your Complaint Has Been Responded To",
+          `The admin has replied to your complaint: "${fullComplaint.title || 'Complaint'}". Open the app to read the response.`,
           { type: "complaint_response", complaint_id: id }
         );
       }
