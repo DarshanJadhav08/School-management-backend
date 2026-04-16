@@ -22,18 +22,22 @@ class MarksController {
       const totalMarks = subjects.reduce((sum: number, s: any) => sum + (s.total_marks || 100), 0);
       const overallPercentage = totalMarks > 0 ? ((totalObtained / totalMarks) * 100).toFixed(2) : '0.00';
 
-      // Trigger Notification
+      // Trigger Notification — student la marks notification pathva
       try {
-        const { client_id } = request.params as any;
+        // Flutter first_name lowercase pathavto — case-insensitive search
+        const { Op } = require('sequelize');
         const student = await Student.findOne({ 
-          where: { first_name: first_name, roll_number: roll_number } 
+          where: { 
+            roll_number: roll_number,
+            first_name: { [Op.iLike]: first_name } // case-insensitive match
+          } 
         });
         
-        if (student) {
+        if (student && student.get('user_id')) {
           await NotificationService.sendToUser(
             student.get('user_id') as string,
-            "Naveen Marks/Result Add Zale Ahet",
-            `${exam_name || 'Exam'} che result declare zale ahet. Tumchi percentage: ${overallPercentage}%`,
+            "New Marks Published",
+            `Your marks for ${exam_name || 'Exam'} have been uploaded. Overall: ${overallPercentage}%. Open the app to view details.`,
             { type: "marks", exam_name: exam_name }
           );
         }
