@@ -7,6 +7,7 @@ import {
   updateAdminService,
   deleteAdminService,
 } from "../services/admin.service";
+import { NotificationService } from "../services/notification.service";
 
 export const addAdminController = async (req: FastifyRequest, reply: FastifyReply) => {
   try {
@@ -14,6 +15,19 @@ export const addAdminController = async (req: FastifyRequest, reply: FastifyRepl
     const body = req.body as any;
     const adminData = { ...body, client_id };
     const admin = await addAdminService(adminData);
+
+    // SuperAdmin la: "नवीन admin जोडला गेला"
+    try {
+      const adminName = `${body.first_name || ''} ${body.last_name || ''}`.trim() || 'New Admin';
+      await NotificationService.sendToSuperAdmins(
+        "नवीन admin जोडला गेला",
+        `नवीन admin नोंदणी केली: "${adminName}".`,
+        { type: "admin_added", client_id }
+      );
+    } catch (notifyError) {
+      console.error("Failed to send admin notification:", notifyError);
+    }
+
     return reply.status(201).send({
       message: "Admin added successfully",
       admin,

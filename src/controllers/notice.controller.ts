@@ -15,23 +15,26 @@ export const createNotice = async (req: FastifyRequest, reply: FastifyReply) => 
   const noticeData = { ...body, created_by: userId, client_id, is_active: true };
   const result = await service.createNotice(noticeData);
 
-  // Trigger Notification — role filter apply karoon pathva
+  // Notification: role-wise correct recipients la pathva
   try {
     const creator = await User.findByPk(userId);
-    const rolePrefix = creator?.role_name || "Admin";
-    const creatorName = creator ? `${creator.first_name} ${creator.last_name}` : "School";
+    const creatorRole = (creator?.role_name || 'admin').toLowerCase();
+    const creatorName = creator ? `${creator.first_name} ${creator.last_name}`.trim() : "School";
+    const notifData = { type: "notice", notice_id: result?.id };
 
-    // Flutter app 'role' / 'receiver_role' / 'target_audience' pathavto
-    const targetRole = (body.role || body.receiver_role || body.target_audience || 'all').toLowerCase();
-
-    await NotificationService.sendToAll(
-      client_id,
-      "New Notice Posted",
-      `${rolePrefix} ${creatorName} has posted a new notice: ${body.title}. Open the app to view.`,
-      { type: "notice", notice_id: result?.id },
-      String(userId),  // creator la self-notification nako
-      targetRole       // fakt ya role la pathva
-    );
+    if (creatorRole === 'admin' || creatorRole === 'superadmin' || creatorRole === 'system admin') {
+      // Admin ne post keli:
+      // Teacher la: "नवीन सूचना आली"
+      await NotificationService.sendToAll(client_id, "नवीन सूचना आली", `${creatorName} ने नवीन सूचना प्रकाशित केली: ${body.title}.`, notifData, String(userId), 'teacher');
+      // Student la: "नवीन सूचना आली"
+      await NotificationService.sendToAll(client_id, "नवीन सूचना आली", `${creatorName} ने नवीन सूचना प्रकाशित केली: ${body.title}.`, notifData, String(userId), 'student');
+    } else if (creatorRole === 'teacher') {
+      // Teacher ne post keli:
+      // Student la: "नवीन सूचना आली"
+      await NotificationService.sendToAll(client_id, "नवीन सूचना आली", `${creatorName} ने नवीन सूचना प्रकाशित केली: ${body.title}.`, notifData, String(userId), 'student');
+      // Admin la: "नवीन सूचना प्रकाशित"
+      await NotificationService.sendToAdmins(client_id, "नवीन सूचना प्रकाशित", `${creatorName} ने नवीन सूचना प्रकाशित केली: ${body.title}.`, notifData, String(userId));
+    }
   } catch (notifyError) {
     console.error("Failed to send notice notification:", notifyError);
   }

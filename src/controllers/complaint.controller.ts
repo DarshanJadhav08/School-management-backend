@@ -41,22 +41,36 @@ export const createComplaintController = async (req: any, reply: FastifyReply) =
       target_name: target_name || null,
     });
 
-    // Trigger Notification — send to specific recipient (teacher/admin) or all admins
+    // Trigger Notification
     try {
-      // Student चे नाव DB मधून घ्या (req.user मध्ये first_name नसतो)
       const studentName = `${student.get('first_name') || ''} ${student.get('last_name') || ''}`.trim() || "A Student";
-      const notifTitle = "New Complaint Submitted";
-      const notifBody = `${studentName} has filed a new complaint: "${title}". Please review it in the app.`;
       const notifData = { type: "complaint", complaint_id: (complaint as any).id };
 
-      // Flutter app recipient_user_id पाठवतो — specific teacher/admin ला पाठवा
-      const recipientUserId = req.body.recipient_user_id || req.body.target_user_id;
-      if (recipientUserId) {
-        await NotificationService.sendToUser(recipientUserId, notifTitle, notifBody, notifData);
-      } else {
-        // Fallback: सगळ्या admins ला पाठवा
-        await NotificationService.sendToAdmins(client_id, notifTitle, notifBody, notifData);
-      }
+      // Admin la: "नवीन तक्रार आली"
+      await NotificationService.sendToAdmins(
+        client_id,
+        "नवीन तक्रार आली",
+        `${studentName} ने नवीन तक्रार नोंदवली: "${title}". कृपया तपासा.`,
+        notifData,
+        user_id
+      );
+
+      // Teacher la: "विद्यार्थ्याची तक्रार आली"
+      await NotificationService.sendToAll(
+        client_id,
+        "विद्यार्थ्याची तक्रार आली",
+        `${studentName} ने तक्रार नोंदवली: "${title}".`,
+        notifData,
+        user_id,
+        'teacher'
+      );
+
+      // SuperAdmin la: "नवीन तक्रार आली"
+      await NotificationService.sendToSuperAdmins(
+        "नवीन तक्रार आली",
+        `${studentName} ने नवीन तक्रार नोंदवली: "${title}".`,
+        notifData
+      );
     } catch (notifyError) {
       console.error("Failed to send complaint notification:", notifyError);
     }
@@ -128,19 +142,32 @@ export const addResponseController = async (req: any, reply: FastifyReply) => {
       data: complaint,
     });
 
-    // Trigger Notification for Student
+    // Trigger Notification — Student + Teacher la reply notification
     try {
       const { Complaint, Student } = require("../models");
-      const fullComplaint = await Complaint.findByPk(id, { 
-        include: [{ model: Student, as: "student" }] 
+      const fullComplaint = await Complaint.findByPk(id, {
+        include: [{ model: Student, as: "student" }]
       });
-      
+
+      // Student la: "तक्रारीला उत्तर मिळाले"
       if (fullComplaint?.student?.user_id) {
         await NotificationService.sendToUser(
           fullComplaint.student.user_id,
-          "Your Complaint Has Been Responded To",
-          `The admin has replied to your complaint: "${fullComplaint.title || 'Complaint'}". Open the app to read the response.`,
+          "तक्रारीला उत्तर मिळाले",
+          `तुमच्या तक्रारीला उत्तर मिळाले: "${fullComplaint.title || 'तक्रार'}". उत्तर वाचण्यासाठी app उघडा.`,
           { type: "complaint_response", complaint_id: id }
+        );
+      }
+
+      // Teacher la pan: "तक्रारीला उत्तर मिळाले"
+      if (fullComplaint?.client_id) {
+        await NotificationService.sendToAll(
+          fullComplaint.client_id,
+          "तक्रारीला उत्तर मिळाले",
+          `"${fullComplaint.title || 'तक्रार'}" या तक्रारीला admin ने उत्तर दिले.`,
+          { type: "complaint_response", complaint_id: id },
+          user_id,
+          'teacher'
         );
       }
     } catch (notifyError) {

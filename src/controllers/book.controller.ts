@@ -24,18 +24,20 @@ export const addBookController = async (
 
     const book = await addBookService({ ...body, client_id }, userId);
 
-    // Trigger Notification
+    // Trigger Notification — Students la book notification
     try {
       const creator = await User.findByPk(userId);
-      const creatorName = creator ? `${creator.first_name} ${creator.last_name}` : "Teacher";
-      
+      const creatorName = creator ? `${creator.first_name} ${creator.last_name}`.trim() : "Teacher";
+
+      // Student la: "नवीन पुस्तक उपलब्ध"
       await NotificationService.sendToClass(
         client_id,
         body.class_name || body.standard,
-        "New Study Material Available",
-        `${creatorName} has uploaded a new book: "${body.book_name}". Open the app to view it.`,
+        "नवीन पुस्तक उपलब्ध",
+        `${creatorName} ने नवीन पुस्तक अपलोड केले: "${body.book_name}". तपाहण्यासाठी app उघडा.`,
         { type: "book", book_id: (book as any).id },
-        userId // exclude creator
+        userId,
+        false
       );
     } catch (notifyError) {
       console.error("Failed to send book notification:", notifyError);

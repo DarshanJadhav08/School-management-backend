@@ -272,8 +272,9 @@ export const NotificationService = {
 
   /**
    * Send notification strictly to Administrative staff (Admin, Superadmin)
+   * excludeUserId: complaint pathavnarya student la exclude kara
    */
-  async sendToAdmins(clientId: string, title: string, body: string, data?: any) {
+  async sendToAdmins(clientId: string, title: string, body: string, data?: any, excludeUserId?: string) {
     try {
       const admins = await User.findAll({
         where: { 
@@ -285,7 +286,6 @@ export const NotificationService = {
 
       if (admins.length === 0) return;
 
-      // 1. Multi-save to Database
       const notificationRecords = admins.map((u) => ({
         client_id: clientId,
         user_id: u.id,
@@ -296,20 +296,108 @@ export const NotificationService = {
       }));
       await Notification.bulkCreate(notificationRecords);
 
-      // 2. Filter tokens
-      const tokens = admins.map((u) => u.fcm_token).filter((t) => typeof t === 'string' && t.trim() !== "") as string[];
+      const tokens = admins
+        .filter(u => u.id !== excludeUserId)
+        .map((u) => u.fcm_token)
+        .filter((t) => typeof t === 'string' && t.trim() !== "") as string[];
 
       if (tokens.length === 0) return;
 
       const message: admin.messaging.MulticastMessage = {
         notification: { title, body },
-        tokens: tokens,
+        tokens,
         data: data || {},
       };
 
       await admin.messaging().sendEachForMulticast(message);
     } catch (error) {
       console.error("Error in sendToAdmins:", error);
+    }
+  },
+
+  /**
+   * Complaint aali tevha: Admin + Teacher dono la pathva
+   * (student ne complaint keleli ahe, tyala exclude kara)
+   */
+  async sendToAdminsAndTeachers(clientId: string, title: string, body: string, data?: any, excludeUserId?: string) {
+    try {
+      const recipients = await User.findAll({
+        where: { 
+          client_id: clientId,
+          role_name: { [Op.in]: ['admin', 'superadmin', 'system admin', 'teacher'] }
+        },
+        attributes: ["id", "fcm_token"],
+      });
+
+      if (recipients.length === 0) return;
+
+      const notificationRecords = recipients.map((u) => ({
+        client_id: clientId,
+        user_id: u.id,
+        title,
+        body,
+        type: data?.type || 'general',
+        data: data || {},
+      }));
+      await Notification.bulkCreate(notificationRecords);
+
+      const tokens = recipients
+        .filter(u => u.id !== excludeUserId)
+        .map((u) => u.fcm_token)
+        .filter((t) => typeof t === 'string' && t.trim() !== "") as string[];
+
+      if (tokens.length === 0) return;
+
+      const message: admin.messaging.MulticastMessage = {
+        notification: { title, body },
+        tokens,
+        data: data || {},
+      };
+
+      await admin.messaging().sendEachForMulticast(message);
+    } catch (error) {
+      console.error("Error in sendToAdminsAndTeachers:", error);
+    }
+  },
+
+  /**
+   * Super Admin la notification pathva (school add / admin add)
+   * client_id naste — superadmin global asato
+   */
+  async sendToSuperAdmins(title: string, body: string, data?: any) {
+    try {
+      const superAdmins = await User.findAll({
+        where: { role_name: { [Op.in]: ['superadmin', 'system admin'] } },
+        attributes: ["id", "fcm_token", "client_id"],
+      });
+
+      if (superAdmins.length === 0) return;
+
+      const notificationRecords = superAdmins.map((u) => ({
+        client_id: u.client_id || undefined,
+        user_id: u.id,
+        title,
+        body,
+        type: data?.type || 'general',
+        data: data || {},
+      }));
+      await Notification.bulkCreate(notificationRecords);
+
+      const tokens = superAdmins
+        .map((u) => u.fcm_token)
+        .filter((t) => typeof t === 'string' && t.trim() !== "") as string[];
+
+      if (tokens.length === 0) return;
+
+      const message: admin.messaging.MulticastMessage = {
+        notification: { title, body },
+        tokens,
+        data: data || {},
+      };
+
+      await admin.messaging().sendEachForMulticast(message);
+    } catch (error) {
+      console.error("Error in sendToSuperAdmins:", error);
     }
   }
 };

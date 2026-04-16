@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { Client } from "../models";
 import { IClientCreation } from "../interface/client.interface";
+import { NotificationService } from "../services/notification.service";
 
 interface ClientParams {
   id: string;
@@ -11,6 +12,18 @@ export const createClient = async (req: FastifyRequest, reply: FastifyReply) => 
   try {
     const body = req.body as IClientCreation;
     const client = await Client.create(body);
+
+    // SuperAdmin la: "नवीन शाळा जोडली गेली"
+    try {
+      await NotificationService.sendToSuperAdmins(
+        "नवीन शाळा जोडली गेली",
+        `नवीन शाळा नोंदणी केली: "${(body as any).name || (body as any).school_name || 'New School'}".`,
+        { type: "school_added", client_id: (client as any).id }
+      );
+    } catch (notifyError) {
+      console.error("Failed to send school notification:", notifyError);
+    }
+
     reply.status(201).send({ message: "Client created successfully", data: client });
   } catch (error: any) {
     reply.status(500).send({ error: error.message });

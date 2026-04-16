@@ -49,22 +49,30 @@ export const addHomeworkController = async (
       userId
     );
 
-    // Trigger Notification
+    // Trigger Notification — Students + Admin dono la
     try {
       const teacherUser = await User.findByPk(userId);
-      const teacherName = teacherUser ? `${teacherUser.first_name} ${teacherUser.last_name}` : "Teacher";
-      
+      const teacherName = teacherUser ? `${teacherUser.first_name} ${teacherUser.last_name}`.trim() : "Teacher";
       const targetClass = body.class_name || body.className || body.standard;
-      
+
       if (targetClass) {
+        // Student la: "नवीन गृहपाठ आला"
         await NotificationService.sendToClass(
           client_id,
           targetClass,
-          "New Homework Assigned",
-          `${teacherName} has assigned new ${body.subject_name || body.subjectName || 'Subject'} homework. Please check the app for details.`,
+          "नवीन गृहपाठ आला",
+          `${teacherName} ने ${body.subject_name || body.subjectName || 'Subject'} चा नवीन गृहपाठ दिला. तपशीलांसाठी app तपासा.`,
           { type: "homework", homework_id: (homework as any).id },
-          userId,  // creatorUserId — teacher la push notification nako
-          false    // includeAdmins = false — homework notification fakt students la
+          userId,
+          false
+        );
+
+        // Admin la: "नवीन गृहपाठ जोडला"
+        await NotificationService.sendToAdmins(
+          client_id,
+          "नवीन गृहपाठ जोडला",
+          `${teacherName} ने वर्ग ${targetClass} साठी ${body.subject_name || body.subjectName || 'Subject'} चा नवीन गृहपाठ दिला.`,
+          { type: "homework", homework_id: (homework as any).id }
         );
       }
     } catch (notifyError) {

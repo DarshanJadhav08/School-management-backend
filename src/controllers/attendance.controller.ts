@@ -260,25 +260,34 @@ export const bulkCreateAttendancesController = async (req: any, reply: FastifyRe
     
     const attendances = await bulkCreateAttendancesService(attendancesWithAuth);
 
-    // Trigger Notification for class-wide attendance
+    // Trigger Notification — Students + Admin dono la
     try {
       const date = req.body.attendances?.[0]?.date || new Date().toISOString().split('T')[0];
       let standard = req.body.class_name;
-      
+
       if (!standard) {
         const studentsInBatch = await Student.findOne({ where: { id: req.body.attendances?.[0]?.student_id } });
         standard = studentsInBatch?.get('standard');
       }
 
       if (standard) {
+        // Student la: "आजची उपस्थिती नोंदवली"
         await NotificationService.sendToClass(
           client_id as string,
           standard as string,
-          "Attendance Recorded",
-          `Today's (${date}) attendance has been marked. Please open the app to check your attendance status.`,
-          { type: "attendance_batch", date: date },
-          undefined,   // creatorUserId — attendance la self-block nako
-          false        // includeAdmins = false — attendance notification fakt students la
+          "आजची उपस्थिती नोंदवली",
+          `आजची (${date}) उपस्थिती नोंदवली गेली. आपली उपस्थिती तपासण्यासाठी app उघडा.`,
+          { type: "attendance_batch", date },
+          undefined,
+          false
+        );
+
+        // Admin la: "उपस्थिती नोंदवली गेली"
+        await NotificationService.sendToAdmins(
+          client_id as string,
+          "उपस्थिती नोंदवली गेली",
+          `वर्ग ${standard} ची ${date} रोजची उपस्थिती शिक्षकाने नोंदवली.`,
+          { type: "attendance_batch", date, standard }
         );
       }
     } catch (notifyError) {

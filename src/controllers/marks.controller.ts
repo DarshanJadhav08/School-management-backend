@@ -22,23 +22,23 @@ class MarksController {
       const totalMarks = subjects.reduce((sum: number, s: any) => sum + (s.total_marks || 100), 0);
       const overallPercentage = totalMarks > 0 ? ((totalObtained / totalMarks) * 100).toFixed(2) : '0.00';
 
-      // Trigger Notification — student la marks notification pathva
+      // Trigger Notification — Student la marks notification
       try {
-        // Flutter first_name lowercase pathavto — case-insensitive search
         const { Op } = require('sequelize');
-        const student = await Student.findOne({ 
-          where: { 
+        const student = await Student.findOne({
+          where: {
             roll_number: roll_number,
-            first_name: { [Op.iLike]: first_name } // case-insensitive match
-          } 
+            first_name: { [Op.iLike]: first_name }
+          }
         });
-        
+
         if (student && student.get('user_id')) {
+          // Student la: "तुमचे गुण जोडले गेले"
           await NotificationService.sendToUser(
             student.get('user_id') as string,
-            "New Marks Published",
-            `Your marks for ${exam_name || 'Exam'} have been uploaded. Overall: ${overallPercentage}%. Open the app to view details.`,
-            { type: "marks", exam_name: exam_name }
+            "तुमचे गुण जोडले गेले",
+            `${exam_name || 'Exam'} चे गुण अपलोड केले. एकूण: ${overallPercentage}%. तपशील पाहण्यासाठी app उघडा.`,
+            { type: "marks", exam_name }
           );
         }
       } catch (notifyError) {
