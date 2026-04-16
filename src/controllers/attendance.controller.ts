@@ -276,7 +276,9 @@ export const bulkCreateAttendancesController = async (req: any, reply: FastifyRe
           standard as string,
           "Attendance Recorded",
           `Today's (${date}) attendance has been marked. Please open the app to check your attendance status.`,
-          { type: "attendance_batch", date: date }
+          { type: "attendance_batch", date: date },
+          undefined,   // creatorUserId — attendance la self-block nako
+          false        // includeAdmins = false — attendance notification fakt students la
         );
       }
     } catch (notifyError) {

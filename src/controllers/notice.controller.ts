@@ -15,18 +15,22 @@ export const createNotice = async (req: FastifyRequest, reply: FastifyReply) => 
   const noticeData = { ...body, created_by: userId, client_id, is_active: true };
   const result = await service.createNotice(noticeData);
 
-  // Trigger Notification
+  // Trigger Notification — role filter apply karoon pathva
   try {
     const creator = await User.findByPk(userId);
     const rolePrefix = creator?.role_name || "Admin";
     const creatorName = creator ? `${creator.first_name} ${creator.last_name}` : "School";
+
+    // Flutter app 'role' / 'receiver_role' / 'target_audience' pathavto
+    const targetRole = (body.role || body.receiver_role || body.target_audience || 'all').toLowerCase();
 
     await NotificationService.sendToAll(
       client_id,
       "New Notice Posted",
       `${rolePrefix} ${creatorName} has posted a new notice: ${body.title}. Open the app to view.`,
       { type: "notice", notice_id: result?.id },
-      String(userId) // cast to String to fix build error
+      String(userId),  // creator la self-notification nako
+      targetRole       // fakt ya role la pathva
     );
   } catch (notifyError) {
     console.error("Failed to send notice notification:", notifyError);

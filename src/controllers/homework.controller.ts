@@ -61,9 +61,10 @@ export const addHomeworkController = async (
           client_id,
           targetClass,
           "New Homework Assigned",
-          `${teacherName} has assigned new ${body.subjectName || 'Subject'} homework. Please check the app for details.`,
+          `${teacherName} has assigned new ${body.subject_name || body.subjectName || 'Subject'} homework. Please check the app for details.`,
           { type: "homework", homework_id: (homework as any).id },
-          userId // pass the creator user ID
+          userId,  // creatorUserId — teacher la push notification nako
+          false    // includeAdmins = false — homework notification fakt students la
         );
       }
     } catch (notifyError) {

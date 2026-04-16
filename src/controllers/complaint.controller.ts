@@ -41,15 +41,22 @@ export const createComplaintController = async (req: any, reply: FastifyReply) =
       target_name: target_name || null,
     });
 
-    // Trigger Notification for Admin
+    // Trigger Notification — send to specific recipient (teacher/admin) or all admins
     try {
-      const studentName = `${req.user?.first_name} ${req.user?.last_name}` || "A Student";
-      await NotificationService.sendToAdmins(
-        client_id,
-        "New Complaint Submitted",
-        `${studentName} has filed a new complaint: "${title}". Please review it in the admin panel.`,
-        { type: "complaint", complaint_id: (complaint as any).id }
-      );
+      // Student चे नाव DB मधून घ्या (req.user मध्ये first_name नसतो)
+      const studentName = `${student.get('first_name') || ''} ${student.get('last_name') || ''}`.trim() || "A Student";
+      const notifTitle = "New Complaint Submitted";
+      const notifBody = `${studentName} has filed a new complaint: "${title}". Please review it in the app.`;
+      const notifData = { type: "complaint", complaint_id: (complaint as any).id };
+
+      // Flutter app recipient_user_id पाठवतो — specific teacher/admin ला पाठवा
+      const recipientUserId = req.body.recipient_user_id || req.body.target_user_id;
+      if (recipientUserId) {
+        await NotificationService.sendToUser(recipientUserId, notifTitle, notifBody, notifData);
+      } else {
+        // Fallback: सगळ्या admins ला पाठवा
+        await NotificationService.sendToAdmins(client_id, notifTitle, notifBody, notifData);
+      }
     } catch (notifyError) {
       console.error("Failed to send complaint notification:", notifyError);
     }

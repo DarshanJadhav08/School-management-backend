@@ -120,9 +120,9 @@ export const NotificationService = {
    * - Still get a history record saved
    * - BUT will NOT receive a push notification on their device
    */
-  async sendToClass(clientId: string, standard: string, title: string, body: string, data?: any, creatorUserId?: string) {
+  // includeAdmins = false by default — attendance/homework/book notifications should NOT go to admins
+  async sendToClass(clientId: string, standard: string, title: string, body: string, data?: any, creatorUserId?: string, includeAdmins: boolean = false) {
     try {
-      // 1. Build standard variations for matching
       const getDigits = (s: string) => s.toString().replace(/\D/g, '');
       const digits = getDigits(standard);
       
@@ -132,9 +132,9 @@ export const NotificationService = {
         standardVariations.push(`${digits}TH`, `${digits}ST`, `${digits}ND`, `${digits}RD`);
       }
 
-      console.log(`[NotificationService] Delivering for Standard: "${standard}" for Client: ${clientId}. Creator (excluded from push): ${creatorUserId || 'N/A'}`);
+      console.log(`[NotificationService] sendToClass: standard="${standard}" client=${clientId} includeAdmins=${includeAdmins} creator=${creatorUserId || 'N/A'}`);
 
-      // 2. Find all students in this class
+      // 1. Find all students in this class
       let students = await Student.findAll({
         where: { 
           client_id: clientId, 
@@ -143,9 +143,7 @@ export const NotificationService = {
         include: [{ model: User, as: "user" }],
       });
 
-      // Broad fallback by digit matching
       if (students.length === 0 && digits) {
-        console.log(`[NotificationService] No precise match. Trying broad fallback with digits: "${digits}"`);
         students = await Student.findAll({
           where: { client_id: clientId, standard: { [Op.iLike]: `%${digits}%` } },
           include: [{ model: User, as: "user" }],
@@ -154,19 +152,9 @@ export const NotificationService = {
 
       console.log(`[NotificationService] Found ${students.length} students.`);
 
-      // 3. Fetch all Admin + SuperAdmin users in the school
-      const adminUsers = await User.findAll({
-        where: {
-          client_id: clientId,
-          role_name: { [Op.in]: ['admin', 'superadmin', 'system admin'] }
-        },
-        attributes: ['id', 'fcm_token', 'role_name'],
-      });
-
-      // 4. Build unique recipient map (Students + Admins, NO duplicates)
+      // 2. Build recipient map — students only
       const recipients = new Map<string, { fcm_token: string | null, role_name: string }>();
 
-      // Add students
       for (const s of students as any[]) {
         const uid = s.user?.id || s.user_id;
         if (uid) {
@@ -174,19 +162,28 @@ export const NotificationService = {
         }
       }
 
-      // Add admins (Map ensures no duplicates even if user appears in both)
-      for (const adminUser of adminUsers) {
-        if (adminUser.id) {
-          recipients.set(adminUser.id as string, {
-            fcm_token: adminUser.fcm_token || null,
-            role_name: adminUser.role_name || 'admin',
-          });
+      // 3. Optionally include admins (only for notices/announcements)
+      if (includeAdmins) {
+        const adminUsers = await User.findAll({
+          where: {
+            client_id: clientId,
+            role_name: { [Op.in]: ['admin', 'superadmin', 'system admin'] }
+          },
+          attributes: ['id', 'fcm_token', 'role_name'],
+        });
+        for (const adminUser of adminUsers) {
+          if (adminUser.id) {
+            recipients.set(adminUser.id as string, {
+              fcm_token: adminUser.fcm_token || null,
+              role_name: adminUser.role_name || 'admin',
+            });
+          }
         }
       }
 
       console.log(`[NotificationService] Total unique recipients: ${recipients.size}`);
 
-      // 5. Save notification history for ALL recipients (including creator)
+      // 4. Save notification history for ALL recipients
       const notificationRecords = Array.from(recipients.keys()).map((uid) => ({
         client_id: clientId,
         user_id: uid,
@@ -198,21 +195,15 @@ export const NotificationService = {
       
       if (notificationRecords.length > 0) {
         await Notification.bulkCreate(notificationRecords);
-        console.log(`[NotificationService] Saved ${notificationRecords.length} records to history.`);
       }
 
-      // 6. Send FCM push ONLY to recipients who are NOT the creator
+      // 5. Send FCM push ONLY to recipients who are NOT the creator
       const pushTokens = Array.from(recipients.entries())
-        .filter(([uid, _]) => uid !== creatorUserId) // Exclude the teacher/creator from push
+        .filter(([uid]) => uid !== creatorUserId)
         .map(([_, info]) => info.fcm_token)
         .filter((t): t is string => typeof t === 'string' && t.trim() !== '');
 
-      if (pushTokens.length === 0) {
-        console.log(`[NotificationService] No valid FCM push tokens (excluding creator). History saved.`);
-        return;
-      }
-
-      console.log(`[NotificationService] Sending push to ${pushTokens.length} devices (creator excluded).`);
+      if (pushTokens.length === 0) return;
 
       const message: admin.messaging.MulticastMessage = {
         notification: { title, body },
@@ -231,16 +222,24 @@ export const NotificationService = {
   /**
    * Send school-wide notification (to all users of a client)
    */
-  async sendToAll(clientId: string, title: string, body: string, data?: any, creatorUserId?: string) {
+  // targetRole: 'all' | 'student' | 'teacher' | 'admin' — filters who receives the notification
+  async sendToAll(clientId: string, title: string, body: string, data?: any, creatorUserId?: string, targetRole: string = 'all') {
     try {
+      const whereClause: any = { client_id: clientId };
+
+      // Apply role filter — only send to matching role(s)
+      if (targetRole && targetRole !== 'all') {
+        whereClause.role_name = targetRole;
+      }
+
       const users = await User.findAll({
-        where: { client_id: clientId },
+        where: whereClause,
         attributes: ["id", "fcm_token"],
       });
 
       if (users.length === 0) return;
 
-      // 1. Multi-save to Database
+      // 1. Save to DB history for all matched users
       const notificationRecords = users.map((u) => ({
         client_id: clientId,
         user_id: u.id,
@@ -251,17 +250,17 @@ export const NotificationService = {
       }));
       await Notification.bulkCreate(notificationRecords);
 
-      // 2. Filter tokens (ignore creator)
+      // 2. Send FCM push — exclude creator (self-notification block)
       const tokens = users
-          .filter(u => u.id !== creatorUserId)
-          .map((u) => u.fcm_token)
-          .filter((t) => typeof t === 'string' && t.trim() !== "") as string[];
+        .filter(u => u.id !== creatorUserId)
+        .map((u) => u.fcm_token)
+        .filter((t) => typeof t === 'string' && t.trim() !== "") as string[];
 
       if (tokens.length === 0) return;
 
       const message: admin.messaging.MulticastMessage = {
         notification: { title, body },
-        tokens: tokens,
+        tokens,
         data: data || {},
       };
 
