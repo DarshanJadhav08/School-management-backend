@@ -136,43 +136,40 @@ export const addResponseController = async (req: any, reply: FastifyReply) => {
     }
 
     const complaint = await addResponseToComplaintService(id, response, user_id);
-    reply.send({
-      message: "Response added successfully",
-      data: complaint,
-    });
 
-    // Trigger Notification — Student la reply notification
+    // Notification BEFORE reply.send() - Fastify terminates after send
     try {
       const fullComplaint = await Complaint.findByPk(id);
       const complaintAny = fullComplaint as any;
       const complaintTitle = complaintAny?.title || 'तक्रार';
       const studentId = complaintAny?.student_id;
 
-      // student_id वरून directly Student query करतो
-      let studentUserId: string | null = null;
       if (studentId) {
         const student = await Student.findByPk(studentId, {
           attributes: ['id', 'user_id']
         });
-        studentUserId = (student as any)?.user_id || null;
-      }
+        const studentUserId = (student as any)?.user_id;
 
-      console.log(`[Complaint Response] complaint_id=${id}, student_id=${studentId}, student_user_id=${studentUserId}`);
+        console.log(`[Complaint Response] student_id=${studentId}, student_user_id=${studentUserId}`);
 
-      if (studentUserId) {
-        await NotificationService.sendToUser(
-          studentUserId,
-          "तक्रारीला उत्तर मिळाले ✅",
-          `तुमच्या "${complaintTitle}" तक्रारीला उत्तर मिळाले. My Complaints मध्ये पाहा.`,
-          { type: "complaint_response", complaint_id: id, sender_id: user_id }
-        );
-        console.log(`[Complaint Response] Notification sent to student user_id: ${studentUserId}`);
-      } else {
-        console.error(`[Complaint Response] student user_id not found. student_id=${studentId}`);
+        if (studentUserId) {
+          await NotificationService.sendToUser(
+            studentUserId,
+            "तक्रारीला उत्तर मिळाले ✅",
+            `तुमच्या "${complaintTitle}" तक्रारीला उत्तर मिळाले. My Complaints मध्ये पाहा.`,
+            { type: "complaint_response", complaint_id: id, sender_id: user_id }
+          );
+          console.log(`[Complaint Response] Notification sent to student: ${studentUserId}`);
+        }
       }
     } catch (notifyError) {
       console.error("Failed to send complaint response notification:", notifyError);
     }
+
+    return reply.send({
+      message: "Response added successfully",
+      data: complaint,
+    });
   } catch (error: any) {
     reply.status(error.statusCode || 500).send({
       statusCode: error.statusCode || 500,
