@@ -142,33 +142,30 @@ export const addResponseController = async (req: any, reply: FastifyReply) => {
       data: complaint,
     });
 
-    // Trigger Notification — Student + Teacher la reply notification
+    // Trigger Notification — Student la reply notification
     try {
       const { Complaint, Student } = require("../models");
       const fullComplaint = await Complaint.findByPk(id, {
-        include: [{ model: Student, as: "student" }]
+        include: [{ 
+          model: Student, 
+          as: "student",
+          attributes: ["id", "user_id", "first_name", "last_name"]
+        }]
       });
 
-      // Student la: "तक्रारीला उत्तर मिळाले"
-      if (fullComplaint?.student?.user_id) {
-        await NotificationService.sendToUser(
-          fullComplaint.student.user_id,
-          "तक्रारीला उत्तर मिळाले",
-          `तुमच्या तक्रारीला उत्तर मिळाले: "${fullComplaint.title || 'तक्रार'}". उत्तर वाचण्यासाठी app उघडा.`,
-          { type: "complaint_response", complaint_id: id }
-        );
-      }
+      const studentUserId = fullComplaint?.student?.user_id || fullComplaint?.student?.get('user_id');
+      const complaintTitle = fullComplaint?.title || 'तक्रार';
 
-      // Teacher la pan: "तक्रारीला उत्तर मिळाले"
-      if (fullComplaint?.client_id) {
-        await NotificationService.sendToAll(
-          fullComplaint.client_id,
-          "तक्रारीला उत्तर मिळाले",
-          `"${fullComplaint.title || 'तक्रार'}" या तक्रारीला admin ने उत्तर दिले.`,
-          { type: "complaint_response", complaint_id: id },
-          user_id,
-          'teacher'
+      // Student la: "तक्रारीला उत्तर मिळाले" - responder (teacher/admin) exclude नाही
+      if (studentUserId) {
+        await NotificationService.sendToUser(
+          studentUserId,
+          "तक्रारीला उत्तर मिळाले ✅",
+          `तुमच्या "${complaintTitle}" तक्रारीला उत्तर मिळाले. My Complaints मध्ये पाहा.`,
+          { type: "complaint_response", complaint_id: id, sender_id: user_id }
         );
+      } else {
+        console.error(`[Complaint Response] student user_id not found for complaint ${id}`);
       }
     } catch (notifyError) {
       console.error("Failed to send complaint response notification:", notifyError);
