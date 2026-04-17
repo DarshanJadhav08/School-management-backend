@@ -85,33 +85,41 @@ export const NotificationService = {
    */
   async sendToUser(userId: string, title: string, body: string, data?: any) {
     try {
+      if (!userId || userId === 'undefined' || userId === 'null') {
+        console.error(`[NotificationService] sendToUser: Invalid userId=${userId}`);
+        return;
+      }
+
       console.log(`[NotificationService] sendToUser: userId=${userId}, title=${title}`);
+
+      // Sanitize data - all values must be strings for FCM
+      const sanitizedData = data ? Object.fromEntries(
+        Object.entries(data).map(([k, v]) => [k, v === null || v === undefined ? '' : String(v)])
+      ) : {};
 
       // 1. Save to Database for history
       const notif = await Notification.create({
         user_id: userId,
         title,
         body,
-        type: data?.type || 'general',
-        data: data || {},
+        type: sanitizedData.type || 'general',
+        data: sanitizedData,
       });
-      console.log(`[NotificationService] Notification saved to DB: id=${notif.id}, user_id=${userId}`);
+      console.log(`[NotificationService] Saved to DB: id=${notif.id}, user_id=${userId}`);
 
       // 2. Send FCM
       const user = await User.findByPk(userId);
-      if (!user || !user.fcm_token) {
-        console.log(`[NotificationService] User ${userId} has no FCM token. Skipping FCM but saved to history.`);
+      if (!user?.fcm_token) {
+        console.log(`[NotificationService] No FCM token for user ${userId}. Saved to history only.`);
         return;
       }
 
-      const message = {
+      await admin.messaging().send({
         notification: { title, body },
         token: user.fcm_token,
-        data: data ? Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])) : {},
-      };
-
-      const response = await admin.messaging().send(message);
-      console.log(`[NotificationService] FCM sent to user ${userId}:`, response);
+        data: sanitizedData,
+      });
+      console.log(`[NotificationService] FCM sent to user ${userId}`);
     } catch (error) {
       console.error(`[NotificationService] Error in sendToUser for user ${userId}:`, error);
     }
@@ -126,6 +134,10 @@ export const NotificationService = {
   // includeAdmins = false by default — attendance/homework/book notifications should NOT go to admins
   async sendToClass(clientId: string, standard: string, title: string, body: string, data?: any, creatorUserId?: string, includeAdmins: boolean = false) {
     try {
+      const sanitizedData = data ? Object.fromEntries(
+        Object.entries(data).map(([k, v]) => [k, v === null || v === undefined ? '' : String(v)])
+      ) : {};
+
       const getDigits = (s: string) => s.toString().replace(/\D/g, '');
       const digits = getDigits(standard);
       
@@ -135,89 +147,83 @@ export const NotificationService = {
         standardVariations.push(`${digits}TH`, `${digits}ST`, `${digits}ND`, `${digits}RD`);
       }
 
-      console.log(`[NotificationService] sendToClass: standard="${standard}" client=${clientId} includeAdmins=${includeAdmins} creator=${creatorUserId || 'N/A'}`);
+      console.log(`[sendToClass] standard="${standard}" client=${clientId} creator=${creatorUserId || 'N/A'}`);
 
-      // 1. Find all students in this class
       let students = await Student.findAll({
         where: { 
           client_id: clientId, 
           standard: { [Op.or]: standardVariations.map(v => ({ [Op.iLike]: v })) } 
         },
-        include: [{ model: User, as: "user" }],
+        include: [{ model: User, as: "user", attributes: ['id', 'fcm_token'] }],
       });
 
       if (students.length === 0 && digits) {
         students = await Student.findAll({
           where: { client_id: clientId, standard: { [Op.iLike]: `%${digits}%` } },
-          include: [{ model: User, as: "user" }],
+          include: [{ model: User, as: "user", attributes: ['id', 'fcm_token'] }],
         });
       }
 
-      console.log(`[NotificationService] Found ${students.length} students.`);
+      console.log(`[sendToClass] Found ${students.length} students for standard=${standard}`);
+      if (students.length === 0) {
+        console.warn(`[sendToClass] No students found! Check standard format. Tried: ${standardVariations.join(', ')}`);
+        return;
+      }
 
-      // 2. Build recipient map — students only
-      const recipients = new Map<string, { fcm_token: string | null, role_name: string }>();
+      const recipients = new Map<string, { fcm_token: string | null }>();
 
       for (const s of students as any[]) {
         const uid = s.user?.id || s.user_id;
-        if (uid) {
-          recipients.set(uid, { fcm_token: s.user?.fcm_token || null, role_name: 'student' });
-        }
+        const token = s.user?.fcm_token || null;
+        if (uid) recipients.set(uid, { fcm_token: token });
       }
 
-      // 3. Optionally include admins (only for notices/announcements)
       if (includeAdmins) {
         const adminUsers = await User.findAll({
-          where: {
-            client_id: clientId,
-            role_name: { [Op.in]: ['admin', 'superadmin', 'system admin'] }
-          },
-          attributes: ['id', 'fcm_token', 'role_name'],
+          where: { client_id: clientId, role_name: { [Op.in]: ['admin', 'superadmin', 'system admin'] } },
+          attributes: ['id', 'fcm_token'],
         });
-        for (const adminUser of adminUsers) {
-          if (adminUser.id) {
-            recipients.set(adminUser.id as string, {
-              fcm_token: adminUser.fcm_token || null,
-              role_name: adminUser.role_name || 'admin',
-            });
-          }
+        for (const a of adminUsers) {
+          if (a.id) recipients.set(a.id as string, { fcm_token: a.fcm_token || null });
         }
       }
 
-      console.log(`[NotificationService] Total unique recipients: ${recipients.size}`);
+      console.log(`[sendToClass] Total recipients: ${recipients.size}`);
 
-      // 4. Save notification history for ALL recipients
-      const notificationRecords = Array.from(recipients.keys()).map((uid) => ({
-        client_id: clientId,
-        user_id: uid,
-        title,
-        body,
-        type: data?.type || 'general',
-        data: data || {},
-      }));
-      
-      if (notificationRecords.length > 0) {
-        await Notification.bulkCreate(notificationRecords);
+      // Save to DB
+      if (recipients.size > 0) {
+        await Notification.bulkCreate(
+          Array.from(recipients.keys()).map(uid => ({
+            client_id: clientId,
+            user_id: uid,
+            title,
+            body,
+            type: sanitizedData.type || 'general',
+            data: sanitizedData,
+          }))
+        );
+        console.log(`[sendToClass] Saved ${recipients.size} notifications to DB`);
       }
 
-      // 5. Send FCM push ONLY to recipients who are NOT the creator
+      // Send FCM
       const pushTokens = Array.from(recipients.entries())
         .filter(([uid]) => uid !== creatorUserId)
         .map(([_, info]) => info.fcm_token)
         .filter((t): t is string => typeof t === 'string' && t.trim() !== '');
 
-      if (pushTokens.length === 0) return;
+      if (pushTokens.length === 0) {
+        console.log(`[sendToClass] No FCM tokens to push`);
+        return;
+      }
 
-      const message: admin.messaging.MulticastMessage = {
+      const response = await admin.messaging().sendEachForMulticast({
         notification: { title, body },
         tokens: pushTokens,
-        data: data || {},
-      };
-
-      const response = await admin.messaging().sendEachForMulticast(message);
-      console.log(`[NotificationService] Multicast: ${response.successCount} success, ${response.failureCount} failure.`);
+        data: sanitizedData,
+      });
+      console.log(`[sendToClass] FCM: ${response.successCount} success, ${response.failureCount} failure`);
     } catch (error) {
-      console.error("[NotificationService] Error in sendToClass:", error);
+      console.error("[sendToClass] Error:", error);
     }
   },
 
@@ -228,48 +234,30 @@ export const NotificationService = {
   // targetRole: 'all' | 'student' | 'teacher' | 'admin' — filters who receives the notification
   async sendToAll(clientId: string, title: string, body: string, data?: any, creatorUserId?: string, targetRole: string = 'all') {
     try {
+      const sanitizedData = data ? Object.fromEntries(
+        Object.entries(data).map(([k, v]) => [k, v === null || v === undefined ? '' : String(v)])
+      ) : {};
+
       const whereClause: any = { client_id: clientId };
+      if (targetRole && targetRole !== 'all') whereClause.role_name = targetRole;
 
-      // Apply role filter — only send to matching role(s)
-      if (targetRole && targetRole !== 'all') {
-        whereClause.role_name = targetRole;
-      }
-
-      const users = await User.findAll({
-        where: whereClause,
-        attributes: ["id", "fcm_token"],
-      });
-
+      const users = await User.findAll({ where: whereClause, attributes: ["id", "fcm_token"] });
       if (users.length === 0) return;
 
-      // 1. Save to DB history for all matched users
-      const notificationRecords = users.map((u) => ({
-        client_id: clientId,
-        user_id: u.id,
-        title,
-        body,
-        type: data?.type || 'general',
-        data: data || {},
-      }));
-      await Notification.bulkCreate(notificationRecords);
+      await Notification.bulkCreate(users.map(u => ({
+        client_id: clientId, user_id: u.id, title, body,
+        type: sanitizedData.type || 'general', data: sanitizedData,
+      })));
 
-      // 2. Send FCM push — exclude creator (self-notification block)
       const tokens = users
         .filter(u => u.id !== creatorUserId)
-        .map((u) => u.fcm_token)
-        .filter((t) => typeof t === 'string' && t.trim() !== "") as string[];
+        .map(u => u.fcm_token)
+        .filter((t): t is string => typeof t === 'string' && t.trim() !== '');
 
       if (tokens.length === 0) return;
-
-      const message: admin.messaging.MulticastMessage = {
-        notification: { title, body },
-        tokens,
-        data: data || {},
-      };
-
-      await admin.messaging().sendEachForMulticast(message);
+      await admin.messaging().sendEachForMulticast({ notification: { title, body }, tokens, data: sanitizedData });
     } catch (error) {
-      console.error("Error in sendToAll:", error);
+      console.error("[sendToAll] Error:", error);
     }
   },
 
@@ -279,42 +267,30 @@ export const NotificationService = {
    */
   async sendToAdmins(clientId: string, title: string, body: string, data?: any, excludeUserId?: string) {
     try {
+      const sanitizedData = data ? Object.fromEntries(
+        Object.entries(data).map(([k, v]) => [k, v === null || v === undefined ? '' : String(v)])
+      ) : {};
+
       const admins = await User.findAll({
-        where: { 
-          client_id: clientId,
-          role_name: { [Op.in]: ['admin', 'superadmin', 'system admin'] }
-        },
+        where: { client_id: clientId, role_name: { [Op.in]: ['admin', 'superadmin', 'system admin'] } },
         attributes: ["id", "fcm_token"],
       });
-
       if (admins.length === 0) return;
 
-      const notificationRecords = admins.map((u) => ({
-        client_id: clientId,
-        user_id: u.id,
-        title,
-        body,
-        type: data?.type || 'general',
-        data: data || {},
-      }));
-      await Notification.bulkCreate(notificationRecords);
+      await Notification.bulkCreate(admins.map(u => ({
+        client_id: clientId, user_id: u.id, title, body,
+        type: sanitizedData.type || 'general', data: sanitizedData,
+      })));
 
       const tokens = admins
         .filter(u => u.id !== excludeUserId)
-        .map((u) => u.fcm_token)
-        .filter((t) => typeof t === 'string' && t.trim() !== "") as string[];
+        .map(u => u.fcm_token)
+        .filter((t): t is string => typeof t === 'string' && t.trim() !== '');
 
       if (tokens.length === 0) return;
-
-      const message: admin.messaging.MulticastMessage = {
-        notification: { title, body },
-        tokens,
-        data: data || {},
-      };
-
-      await admin.messaging().sendEachForMulticast(message);
+      await admin.messaging().sendEachForMulticast({ notification: { title, body }, tokens, data: sanitizedData });
     } catch (error) {
-      console.error("Error in sendToAdmins:", error);
+      console.error("[sendToAdmins] Error:", error);
     }
   },
 
