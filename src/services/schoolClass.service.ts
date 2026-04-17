@@ -20,6 +20,10 @@ export class SchoolClassService {
     return this.repo.deleteClass(id);
   }
 
+  async updateClass(id: string, data: Partial<SchoolClass>) {
+    return this.repo.updateClass(id, data);
+  }
+
   async getActiveClasses(client_id: string) {
     return this.repo.getActiveClasses(client_id);
   }

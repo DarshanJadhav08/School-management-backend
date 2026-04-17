@@ -10,5 +10,6 @@ export default async function schoolClassRoutes(fastify: FastifyInstance) {
   fastify.post("/admin/add-class/:client_id", { preHandler: authMiddleware }, controller.addClass);
   fastify.post("/admin/add-multiple-classes/:client_id", { preHandler: authMiddleware }, controller.addMultipleClasses);
   fastify.delete("/admin/delete-class/:id", { preHandler: authMiddleware }, controller.deleteClass);
+  fastify.put("/admin/update-class/:id", { preHandler: authMiddleware }, controller.updateClass);
   fastify.get("/teacher/classes/:client_id", { preHandler: authMiddleware }, controller.getActiveClasses);
 }

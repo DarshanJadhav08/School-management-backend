@@ -31,6 +31,12 @@ export default class SchoolClassRepo {
     return schoolClass;
   }
 
+  async updateClass(id: string, data: Partial<SchoolClassInterface>) {
+    const schoolClass = await SchoolClass.findByPk(id);
+    if (!schoolClass) return null;
+    return await schoolClass.update(data);
+  }
+
   async getActiveClasses(client_id: string) {
     return await SchoolClass.findAll({
       where: { client_id, is_active: true },

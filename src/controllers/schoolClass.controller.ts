@@ -35,6 +35,14 @@ export class SchoolClassController {
     reply.send(result);
   };
 
+  updateClass = async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as any;
+    const body = request.body as any;
+    const result = await this.service.updateClass(id, body);
+    if (!result) return reply.status(404).send({ error: "Class not found" });
+    reply.send(result);
+  };
+
   getActiveClasses = async (request: FastifyRequest, reply: FastifyReply) => {
     const { client_id } = request.params as any;
     const result = await this.service.getActiveClasses(client_id);
