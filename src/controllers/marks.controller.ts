@@ -29,14 +29,17 @@ class MarksController {
           where: {
             roll_number: roll_number,
             first_name: { [Op.iLike]: first_name }
-          }
+          },
+          attributes: ['id', 'user_id']
         });
 
-        if (student && student.get('user_id')) {
-          // Student la: "तुमचे गुण जोडले गेले"
+        const studentUserId = (student as any)?.user_id;
+        console.log(`[Marks] student found: ${student?.id}, user_id: ${studentUserId}`);
+
+        if (studentUserId) {
           await NotificationService.sendToUser(
-            student.get('user_id') as string,
-            "तुमचे गुण जोडले गेले",
+            studentUserId,
+            "तुमचे गुण जोडले गेले ✅",
             `${exam_name || 'Exam'} चे गुण अपलोड केले. एकूण: ${overallPercentage}%. तपशील पाहण्यासाठी app उघडा.`,
             { type: "marks", exam_name }
           );

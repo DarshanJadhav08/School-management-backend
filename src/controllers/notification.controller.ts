@@ -5,7 +5,9 @@ import { Op } from "sequelize";
 export const getNotificationsController = async (req: FastifyRequest, reply: FastifyReply) => {
   try {
     const userId = req.user?.user_id as string;
-    const { page = 1, limit = 20 } = req.query as any;
+    const { page = 1, limit = 50 } = req.query as any;
+
+    console.log(`[Notifications] Fetching for user_id: ${userId}`);
 
     const offset = (Number(page) - 1) * Number(limit);
 
@@ -15,6 +17,8 @@ export const getNotificationsController = async (req: FastifyRequest, reply: Fas
       limit: Number(limit),
       offset: Number(offset),
     });
+
+    console.log(`[Notifications] Found ${count} notifications for user_id: ${userId}`);
 
     const unreadCount = await Notification.count({
       where: { user_id: userId, is_read: false },

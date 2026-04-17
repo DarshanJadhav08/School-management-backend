@@ -143,17 +143,21 @@ export const addResponseController = async (req: any, reply: FastifyReply) => {
 
     // Trigger Notification — Student la reply notification
     try {
-      const fullComplaint = await Complaint.findByPk(id, {
-        include: [{ 
-          model: Student, 
-          as: "student",
-          attributes: ["id", "user_id", "first_name", "last_name"]
-        }]
-      });
-
+      const fullComplaint = await Complaint.findByPk(id);
       const complaintAny = fullComplaint as any;
-      const studentUserId = complaintAny?.student?.user_id;
       const complaintTitle = complaintAny?.title || 'तक्रार';
+      const studentId = complaintAny?.student_id;
+
+      // student_id वरून directly Student query करतो
+      let studentUserId: string | null = null;
+      if (studentId) {
+        const student = await Student.findByPk(studentId, {
+          attributes: ['id', 'user_id']
+        });
+        studentUserId = (student as any)?.user_id || null;
+      }
+
+      console.log(`[Complaint Response] complaint_id=${id}, student_id=${studentId}, student_user_id=${studentUserId}`);
 
       if (studentUserId) {
         await NotificationService.sendToUser(
@@ -164,7 +168,7 @@ export const addResponseController = async (req: any, reply: FastifyReply) => {
         );
         console.log(`[Complaint Response] Notification sent to student user_id: ${studentUserId}`);
       } else {
-        console.error(`[Complaint Response] student user_id not found for complaint ${id}. fullComplaint:`, JSON.stringify(complaintAny?.student));
+        console.error(`[Complaint Response] student user_id not found. student_id=${studentId}`);
       }
     } catch (notifyError) {
       console.error("Failed to send complaint response notification:", notifyError);

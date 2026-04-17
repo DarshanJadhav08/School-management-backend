@@ -85,32 +85,35 @@ export const NotificationService = {
    */
   async sendToUser(userId: string, title: string, body: string, data?: any) {
     try {
+      console.log(`[NotificationService] sendToUser: userId=${userId}, title=${title}`);
+
       // 1. Save to Database for history
-      await Notification.create({
+      const notif = await Notification.create({
         user_id: userId,
         title,
         body,
         type: data?.type || 'general',
         data: data || {},
       });
+      console.log(`[NotificationService] Notification saved to DB: id=${notif.id}, user_id=${userId}`);
 
       // 2. Send FCM
       const user = await User.findByPk(userId);
       if (!user || !user.fcm_token) {
-        console.log(`User ${userId} has no FCM token. Skipping FCM but saved to history.`);
+        console.log(`[NotificationService] User ${userId} has no FCM token. Skipping FCM but saved to history.`);
         return;
       }
 
       const message = {
         notification: { title, body },
         token: user.fcm_token,
-        data: data || {},
+        data: data ? Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])) : {},
       };
 
       const response = await admin.messaging().send(message);
-      console.log(`Successfully sent message to user ${userId}:`, response);
+      console.log(`[NotificationService] FCM sent to user ${userId}:`, response);
     } catch (error) {
-      console.error(`Error in sendToUser for user ${userId}:`, error);
+      console.error(`[NotificationService] Error in sendToUser for user ${userId}:`, error);
     }
   },
 
