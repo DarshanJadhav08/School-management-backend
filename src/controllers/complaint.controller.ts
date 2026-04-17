@@ -7,7 +7,7 @@ import {
   getStudentComplaintsService,
 } from "../services/complaint.service";
 import { NotificationService } from "../services/notification.service";
-import { User, Admin } from "../models";
+import { User, Admin, Complaint, Student } from "../models";
 
 export const createComplaintController = async (req: any, reply: FastifyReply) => {
   try {
@@ -22,7 +22,6 @@ export const createComplaintController = async (req: any, reply: FastifyReply) =
     }
 
     // Get student_id from user_id
-    const { Student } = require("../models");
     const student = await Student.findOne({ where: { user_id } });
     
     if (!student) {
@@ -144,7 +143,6 @@ export const addResponseController = async (req: any, reply: FastifyReply) => {
 
     // Trigger Notification — Student la reply notification
     try {
-      const { Complaint, Student } = require("../models");
       const fullComplaint = await Complaint.findByPk(id, {
         include: [{ 
           model: Student, 
@@ -153,10 +151,10 @@ export const addResponseController = async (req: any, reply: FastifyReply) => {
         }]
       });
 
-      const studentUserId = fullComplaint?.student?.user_id || fullComplaint?.student?.get('user_id');
-      const complaintTitle = fullComplaint?.title || 'तक्रार';
+      const complaintAny = fullComplaint as any;
+      const studentUserId = complaintAny?.student?.user_id;
+      const complaintTitle = complaintAny?.title || 'तक्रार';
 
-      // Student la: "तक्रारीला उत्तर मिळाले" - responder (teacher/admin) exclude नाही
       if (studentUserId) {
         await NotificationService.sendToUser(
           studentUserId,
@@ -164,8 +162,9 @@ export const addResponseController = async (req: any, reply: FastifyReply) => {
           `तुमच्या "${complaintTitle}" तक्रारीला उत्तर मिळाले. My Complaints मध्ये पाहा.`,
           { type: "complaint_response", complaint_id: id, sender_id: user_id }
         );
+        console.log(`[Complaint Response] Notification sent to student user_id: ${studentUserId}`);
       } else {
-        console.error(`[Complaint Response] student user_id not found for complaint ${id}`);
+        console.error(`[Complaint Response] student user_id not found for complaint ${id}. fullComplaint:`, JSON.stringify(complaintAny?.student));
       }
     } catch (notifyError) {
       console.error("Failed to send complaint response notification:", notifyError);
@@ -181,7 +180,6 @@ export const addResponseController = async (req: any, reply: FastifyReply) => {
 export const getStudentComplaintsController = async (req: any, reply: FastifyReply) => {
   try {
     const { user_id } = req.user;
-    const { Student } = require("../models");
     const student = await Student.findOne({ where: { user_id } });
 
     if (!student) {
