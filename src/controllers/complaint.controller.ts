@@ -11,7 +11,7 @@ import { User, Admin, Complaint, Student } from "../models";
 
 export const createComplaintController = async (req: any, reply: FastifyReply) => {
   try {
-    const { title, description, role, target_name } = req.body;
+    const { title, description, role, target_name, recipient_user_id } = req.body;
     const { user_id, client_id } = req.user;
 
     if (!title || !description || !role) {
@@ -21,14 +21,9 @@ export const createComplaintController = async (req: any, reply: FastifyReply) =
       });
     }
 
-    // Get student_id from user_id
     const student = await Student.findOne({ where: { user_id } });
-    
     if (!student) {
-      return reply.status(404).send({
-        statusCode: 404,
-        message: "Student not found",
-      });
+      return reply.status(404).send({ statusCode: 404, message: "Student not found" });
     }
 
     const complaint = await createComplaintService({
@@ -40,41 +35,28 @@ export const createComplaintController = async (req: any, reply: FastifyReply) =
       target_name: target_name || null,
     });
 
-    // Trigger Notification
+    // Notification BEFORE reply.send()
     try {
       const studentName = `${student.get('first_name') || ''} ${student.get('last_name') || ''}`.trim() || "A Student";
       const notifData = { type: "complaint", complaint_id: (complaint as any).id };
+      const notifTitle = "नवीन तक्रार आली";
+      const notifBody = `${studentName} ने तक्रार नोंदवली: "${title}". कृपया तपासा.`;
 
-      // Admin la: "नवीन तक्रार आली"
-      await NotificationService.sendToAdmins(
-        client_id,
-        "नवीन तक्रार आली",
-        `${studentName} ने नवीन तक्रार नोंदवली: "${title}". कृपया तपासा.`,
-        notifData,
-        user_id
-      );
-
-      // Teacher la: "विद्यार्थ्याची तक्रार आली"
-      await NotificationService.sendToAll(
-        client_id,
-        "विद्यार्थ्याची तक्रार आली",
-        `${studentName} ने तक्रार नोंदवली: "${title}".`,
-        notifData,
-        user_id,
-        'teacher'
-      );
-
-      // SuperAdmin la: "नवीन तक्रार आली"
-      await NotificationService.sendToSuperAdmins(
-        "नवीन तक्रार आली",
-        `${studentName} ने नवीन तक्रार नोंदवली: "${title}".`,
-        notifData
-      );
+      if (recipient_user_id) {
+        // Specific admin/teacher la notification
+        await NotificationService.sendToUser(recipient_user_id, notifTitle, notifBody, notifData);
+      } else if (role?.toLowerCase() === 'teacher') {
+        // Sabhya teachers la
+        await NotificationService.sendToAll(client_id, notifTitle, notifBody, notifData, user_id, 'teacher');
+      } else {
+        // Sabhya admins la
+        await NotificationService.sendToAdmins(client_id, notifTitle, notifBody, notifData, user_id);
+      }
     } catch (notifyError) {
       console.error("Failed to send complaint notification:", notifyError);
     }
 
-    reply.status(201).send({
+    return reply.status(201).send({
       message: "Complaint created successfully",
       data: complaint,
     });

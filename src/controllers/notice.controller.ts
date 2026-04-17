@@ -15,7 +15,7 @@ export const createNotice = async (req: FastifyRequest, reply: FastifyReply) => 
   const noticeData = { ...body, created_by: userId, client_id, is_active: true };
   const result = await service.createNotice(noticeData);
 
-  // Notification: role-wise correct recipients la pathva
+  // Notification BEFORE reply.send()
   try {
     const creator = await User.findByPk(userId);
     const creatorRole = (creator?.role_name || 'admin').toLowerCase();
@@ -23,23 +23,17 @@ export const createNotice = async (req: FastifyRequest, reply: FastifyReply) => 
     const notifData = { type: "notice", notice_id: result?.id };
 
     if (creatorRole === 'admin' || creatorRole === 'superadmin' || creatorRole === 'system admin') {
-      // Admin ne post keli:
-      // Teacher la: "नवीन सूचना आली"
       await NotificationService.sendToAll(client_id, "नवीन सूचना आली", `${creatorName} ने नवीन सूचना प्रकाशित केली: ${body.title}.`, notifData, String(userId), 'teacher');
-      // Student la: "नवीन सूचना आली"
       await NotificationService.sendToAll(client_id, "नवीन सूचना आली", `${creatorName} ने नवीन सूचना प्रकाशित केली: ${body.title}.`, notifData, String(userId), 'student');
     } else if (creatorRole === 'teacher') {
-      // Teacher ne post keli:
-      // Student la: "नवीन सूचना आली"
       await NotificationService.sendToAll(client_id, "नवीन सूचना आली", `${creatorName} ने नवीन सूचना प्रकाशित केली: ${body.title}.`, notifData, String(userId), 'student');
-      // Admin la: "नवीन सूचना प्रकाशित"
       await NotificationService.sendToAdmins(client_id, "नवीन सूचना प्रकाशित", `${creatorName} ने नवीन सूचना प्रकाशित केली: ${body.title}.`, notifData, String(userId));
     }
   } catch (notifyError) {
     console.error("Failed to send notice notification:", notifyError);
   }
 
-  reply.status(201).send({ success: true, data: result });
+  return reply.status(201).send({ success: true, data: result });
 }
 
 export const getAllNotices = async (req: FastifyRequest, reply: FastifyReply) => {
