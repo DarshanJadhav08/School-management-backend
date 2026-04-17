@@ -33,6 +33,7 @@ export const createComplaintController = async (req: any, reply: FastifyReply) =
       description,
       role,
       target_name: target_name || null,
+      recipient_user_id: recipient_user_id || null,
     });
 
     // Notification BEFORE reply.send()

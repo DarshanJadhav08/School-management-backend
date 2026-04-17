@@ -9,6 +9,7 @@ export class Complaint extends Model {
   declare description: string;
   declare role: string;
   declare target_name: string | null;
+  declare recipient_user_id: string | null;
   declare status: 'pending' | 'resolved';
   declare response: string | null;
   declare responded_by: string | null;
@@ -57,6 +58,13 @@ Complaint.init(
       type: DataTypes.STRING,
       allowNull: true,
       comment: 'Name of the teacher/admin this complaint is for',
+    },
+    recipient_user_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: { model: 'users', key: 'id' },
+      onDelete: 'SET NULL',
+      comment: 'Specific user (admin/teacher) this complaint is directed to',
     },
     status: {
       type: DataTypes.ENUM('pending', 'resolved'),

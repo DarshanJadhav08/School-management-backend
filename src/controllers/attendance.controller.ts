@@ -174,8 +174,35 @@ export const getAttendancesByDateController = async (
 
 export const updateAttendanceController = async (req: any, reply: FastifyReply) => {
   try {
-    const attendance = await updateAttendanceService(req.params.id, req.body);
-    reply.send({
+    const { id } = req.params;
+    const { status } = req.body;
+
+    // Notification BEFORE reply.send()
+    try {
+      const existing = await Attendance.findByPk(id, {
+        include: [{ model: Student, as: 'student', attributes: ['id', 'user_id', 'first_name', 'last_name'] }]
+      });
+      const existingAny = existing as any;
+
+      if (existingAny && status) {
+        const studentUserId = existingAny.student?.user_id;
+        const date = existingAny.date || new Date().toISOString().split('T')[0];
+
+        if (studentUserId) {
+          await NotificationService.sendToUser(
+            studentUserId,
+            status === 'Present' ? '✅ उपस्थिती अपडेट केली' : '⚠️ उपस्थिती अपडेट केली',
+            `${date} रोजीची तुमची उपस्थिती अपडेट केली: ${status}. तपशील पाहण्यासाठी app उघडा.`,
+            { type: 'attendance', status, date }
+          );
+        }
+      }
+    } catch (notifyError) {
+      console.error('Failed to send attendance update notification:', notifyError);
+    }
+
+    const attendance = await updateAttendanceService(id, req.body);
+    return reply.send({
       message: "Attendance updated successfully",
       data: attendance
     });

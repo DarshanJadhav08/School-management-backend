@@ -25,11 +25,15 @@ class MarksController {
       // Trigger Notification — Student la marks notification
       try {
         const { Op } = require('sequelize');
+        const clientId = (request.body as any).client_id;
+        const whereClause: any = {
+          roll_number: roll_number,
+          first_name: { [Op.iLike]: first_name }
+        };
+        if (clientId) whereClause.client_id = clientId;
+
         const student = await Student.findOne({
-          where: {
-            roll_number: roll_number,
-            first_name: { [Op.iLike]: first_name }
-          },
+          where: whereClause,
           attributes: ['id', 'user_id']
         });
 
@@ -41,7 +45,7 @@ class MarksController {
             studentUserId,
             "तुमचे गुण जोडले गेले ✅",
             `${exam_name || 'Exam'} चे गुण अपलोड केले. एकूण: ${overallPercentage}%. तपशील पाहण्यासाठी app उघडा.`,
-            { type: "marks", exam_name }
+            { type: "marks", exam_name: exam_name || 'Exam' }
           );
         }
       } catch (notifyError) {

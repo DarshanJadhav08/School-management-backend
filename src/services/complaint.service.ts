@@ -8,6 +8,7 @@ export const createComplaintService = async (data: {
   description: string;
   role: string;
   target_name?: string;
+  recipient_user_id?: string;
 }) => {
   const student = await Student.findByPk(data.student_id);
   if (!student) {
