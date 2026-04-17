@@ -39,6 +39,10 @@ interface LoginBody {
   uniqueIdOrPhone: string;
   password: string;
   fcmToken?: string;
+  device_name?: string;
+  device_platform?: string;
+  device_id?: string;
+  login_time?: string;
 }
 
 interface RefreshTokenBody {
@@ -88,9 +92,9 @@ export const signupController = async (req: FastifyRequest<{ Body: SignupBody }>
 
 export const loginController = async (req: FastifyRequest<{ Body: LoginBody }>, reply: FastifyReply) => {
   try {
-    const { uniqueIdOrPhone, password, fcmToken } = req.body;
+    const { uniqueIdOrPhone, password, fcmToken, device_name, device_platform, login_time, device_id } = req.body;
 
-    const result = await loginService(uniqueIdOrPhone, password, fcmToken);
+    const result = await loginService(uniqueIdOrPhone, password, fcmToken, device_name, device_platform, login_time, device_id);
 
     reply.send({
       message: "Login successful",

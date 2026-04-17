@@ -102,7 +102,15 @@ export const signupService = async (data: SignupData, createdBy?: string) => {
   };
 };
 
-export const loginService = async (uniqueIdOrPhone: string, password: string, fcmToken?: string) => {
+export const loginService = async (
+  uniqueIdOrPhone: string,
+  password: string,
+  fcmToken?: string,
+  deviceName?: string,
+  devicePlatform?: string,
+  loginTime?: string,
+  deviceId?: string
+) => {
   if (!uniqueIdOrPhone || !password) {
     const error: any = new Error("Registration ID and password are required");
     error.statusCode = 400;
@@ -110,10 +118,7 @@ export const loginService = async (uniqueIdOrPhone: string, password: string, fc
   }
 
   let user = await findUserByUniqueId(uniqueIdOrPhone);
-
-  if (!user) {
-    user = await findUserByPhone(uniqueIdOrPhone);
-  }
+  if (!user) user = await findUserByPhone(uniqueIdOrPhone);
 
   if (!user) {
     const error: any = new Error("No account found with this registration ID. Please check your registration ID.");
@@ -128,16 +133,51 @@ export const loginService = async (uniqueIdOrPhone: string, password: string, fc
     throw error;
   }
 
-  // Update FCM Token if provided
-  if (fcmToken) {
-    await user.update({ fcm_token: fcmToken });
+  // Suspicious login detection - device_id वरून check
+  let suspicious_login = false;
+  const oldFcmToken = user.fcm_token;
+  const oldDeviceId = (user as any).last_device_id;
+
+  // device_id वेगळा आहे का (म्हणजे नवीन device) - FCM token असो वा नसो
+  const isNewDevice = deviceId && oldDeviceId && deviceId !== oldDeviceId;
+  // FCM token वेगळा आहे का (device_id नसेल तर fallback)
+  const isNewToken = !deviceId && fcmToken && oldFcmToken && fcmToken !== oldFcmToken;
+
+  if (isNewDevice || isNewToken) {
+    suspicious_login = true;
+    const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'User';
+    const device = deviceName || 'a new device';
+    const platform = devicePlatform || '';
+    const time = loginTime
+      ? new Date(loginTime).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true })
+      : new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true });
+
+    // Old device ला security alert notification पाठव
+    try {
+      const { NotificationService } = await import('./notification.service');
+      await NotificationService.sendToUser(
+        user.id,
+        '⚠️ New Login Detected',
+        `Your account (${userName}) was logged in from ${device}${platform ? ' (' + platform + ')' : ''} at ${time}. If this was not you, change your password immediately.`,
+        { type: 'security_alert', sender_id: user.id }
+      );
+    } catch (e) {
+      console.error('Failed to send suspicious login notification:', e);
+    }
+  }
+
+  // FCM Token आणि device_id update करा
+  const updateData: any = {};
+  if (fcmToken) updateData.fcm_token = fcmToken;
+  if (deviceId) updateData.last_device_id = deviceId;
+  if (Object.keys(updateData).length > 0) {
+    await user.update(updateData);
   }
 
   const tokens = generateTokens(user.id, user.role_id, user.role_name, user.client_id);
 
   // Get role-specific ID
   let roleSpecificId = null;
-  
   if (user.role_name === 'student') {
     const student = await Student.findOne({ where: { user_id: user.id } });
     roleSpecificId = (student as any)?.id;
@@ -153,17 +193,15 @@ export const loginService = async (uniqueIdOrPhone: string, password: string, fc
     ...tokens,
     user_id: user.id,
     role_id: user.role_id,
+    suspicious_login,
+    previous_device: suspicious_login ? (deviceName || 'Unknown Device') : undefined,
+    login_time: suspicious_login ? (loginTime || new Date().toISOString()) : undefined,
   };
 
-  // Add role-specific ID
   if (roleSpecificId) {
-    if (user.role_name === 'student') {
-      response.student_id = roleSpecificId;
-    } else if (user.role_name === 'teacher') {
-      response.teacher_id = roleSpecificId;
-    } else if (user.role_name === 'admin') {
-      response.admin_id = roleSpecificId;
-    }
+    if (user.role_name === 'student') response.student_id = roleSpecificId;
+    else if (user.role_name === 'teacher') response.teacher_id = roleSpecificId;
+    else if (user.role_name === 'admin') response.admin_id = roleSpecificId;
   }
 
   return response;

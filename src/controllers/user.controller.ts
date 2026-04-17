@@ -129,6 +129,21 @@ export const getAllStatistics = async (req: FastifyRequest, reply: FastifyReply)
   }
 };
 
+// Logout - FCM token clear
+export const logoutController = async (req: FastifyRequest, reply: FastifyReply) => {
+  try {
+    const userId = req.user?.user_id;
+    if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+
+    const user = await User.findByPk(userId);
+    if (user) await user.update({ fcm_token: undefined });
+
+    reply.send({ message: "Logged out successfully" });
+  } catch (error: any) {
+    reply.status(500).send({ error: error.message });
+  }
+};
+
 // Update FCM Token
 export const updateFcmToken = async (req: FastifyRequest, reply: FastifyReply) => {
   try {
