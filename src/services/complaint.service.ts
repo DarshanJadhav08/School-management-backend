@@ -26,12 +26,28 @@ export const getComplaintsService = async (
     standard?: string;
     role?: string;
     student_name?: string;
+    user_id?: string;
+    requester_user_id?: string;
+    requester_role?: string;
   }
 ) => {
   const { User } = require("../models");
   const where: any = { client_id };
 
-  if (filters?.role) {
+  // Role-based filtering
+  const requesterRole = filters?.requester_role?.toLowerCase();
+  if (requesterRole === 'admin' || requesterRole === 'teacher') {
+    // Admin/Teacher la sirf unke liye aaye complaints (recipient_user_id match)
+    if (filters?.requester_user_id) {
+      where.recipient_user_id = filters.requester_user_id;
+    }
+  } else if (requesterRole === 'student') {
+    // Student la sirf unke complaints (student_id match via include)
+    // handled via student include filter below
+  }
+
+  // Additional filters
+  if (filters?.role && requesterRole !== 'admin' && requesterRole !== 'teacher') {
     where.role = filters.role;
   }
 
@@ -39,7 +55,7 @@ export const getComplaintsService = async (
     {
       model: Student,
       as: "student",
-      attributes: ["id", "first_name", "middle_name", "last_name", "standard", "division"],
+      attributes: ["id", "user_id", "first_name", "middle_name", "last_name", "standard", "division"],
       where: {},
     },
     {
@@ -55,9 +71,12 @@ export const getComplaintsService = async (
   }
 
   if (filters?.student_name) {
-    include[0].where.first_name = {
-      [Op.iLike]: `%${filters.student_name}%`,
-    };
+    include[0].where.first_name = { [Op.iLike]: `%${filters.student_name}%` };
+  }
+
+  // Student filter by user_id or student_id
+  if (filters?.user_id && (requesterRole === 'student' || !requesterRole)) {
+    include[0].where.user_id = filters.user_id;
   }
 
   return await Complaint.findAll({

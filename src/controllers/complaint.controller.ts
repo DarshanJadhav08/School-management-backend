@@ -71,13 +71,18 @@ export const createComplaintController = async (req: any, reply: FastifyReply) =
 
 export const getComplaintsController = async (req: any, reply: FastifyReply) => {
   try {
-    const { client_id } = req.user;
-    const { standard, role, student_name } = req.query;
+    const { client_id, user_id: reqUserId, role_name } = req.user;
+    const { standard, role, student_name, user_id, student_id } = req.query;
 
+    // Admin/Teacher la sirf unke complaints dikhao (recipient_user_id match)
+    // Student la sirf unke complaints dikhao (student_id match)
     const complaints = await getComplaintsService(client_id, {
       standard,
       role,
       student_name,
+      user_id: user_id || student_id,
+      requester_user_id: reqUserId,
+      requester_role: role_name,
     });
 
     reply.send({
