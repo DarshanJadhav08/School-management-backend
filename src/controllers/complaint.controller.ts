@@ -36,21 +36,26 @@ export const createComplaintController = async (req: any, reply: FastifyReply) =
       recipient_user_id: recipient_user_id || null,
     });
 
-    // Notification BEFORE reply.send()
+    // Send notification to recipient(s)
     try {
       const studentName = `${student.get('first_name') || ''} ${student.get('last_name') || ''}`.trim() || "A Student";
-      const notifData = { type: "complaint", complaint_id: (complaint as any).id };
+      const notifData = { 
+        type: "complaint", 
+        complaint_id: (complaint as any).id,
+        sender_id: user_id,
+        student_id: student.id
+      };
       const notifTitle = "नवीन तक्रार आली";
-      const notifBody = `${studentName} ने तक्रार नोंदवली: "${title}". कृपया तपासा.`;
+      const notifBody = `${studentName} ने तक्रार नोंदवली: "${title}"`;
 
       if (recipient_user_id) {
-        // Specific admin/teacher la notification
+        // Specific admin/teacher को notification
         await NotificationService.sendToUser(recipient_user_id, notifTitle, notifBody, notifData);
       } else if (role?.toLowerCase() === 'teacher') {
-        // Sabhya teachers la
+        // सभी teachers को notification
         await NotificationService.sendToAll(client_id, notifTitle, notifBody, notifData, user_id, 'teacher');
       } else {
-        // Sabhya admins la
+        // सभी admins को notification
         await NotificationService.sendToAdmins(client_id, notifTitle, notifBody, notifData, user_id);
       }
     } catch (notifyError) {
