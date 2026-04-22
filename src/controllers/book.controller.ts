@@ -35,7 +35,7 @@ export const addBookController = async (
         body.class_name || body.standard,
         "नवीन पुस्तक उपलब्ध",
         `${creatorName} ने नवीन पुस्तक अपलोड केले: "${body.book_name}". तपाहण्यासाठी app उघडा.`,
-        { type: "book", book_id: (book as any).id },
+        { type: "book", book_id: (book as any).id, sender_id: userId },
         userId,
         false
       );

@@ -62,7 +62,7 @@ export const addHomeworkController = async (
           targetClass,
           "नवीन गृहपाठ आला",
           `${teacherName} ने ${body.subject_name || body.subjectName || 'Subject'} चा नवीन गृहपाठ दिला. तपशीलांसाठी app तपासा.`,
-          { type: "homework", homework_id: (homework as any).id },
+          { type: "homework", homework_id: (homework as any).id, sender_id: userId },
           userId,
           false
         );

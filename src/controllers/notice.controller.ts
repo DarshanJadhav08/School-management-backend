@@ -27,7 +27,7 @@ export const createNotice = async (req: FastifyRequest, reply: FastifyReply) => 
       await NotificationService.sendToAll(client_id, "नवीन सूचना आली", `${creatorName} ने नवीन सूचना प्रकाशित केली: ${body.title}.`, notifData, String(userId), 'student');
     } else if (creatorRole === 'teacher') {
       await NotificationService.sendToAll(client_id, "नवीन सूचना आली", `${creatorName} ने नवीन सूचना प्रकाशित केली: ${body.title}.`, notifData, String(userId), 'student');
-      await NotificationService.sendToAdmins(client_id, "नवीन सूचना प्रकाशित", `${creatorName} ने नवीन सूचना प्रकाशित केली: ${body.title}.`, notifData, String(userId));
+      await NotificationService.sendToAdmins(client_id, "नवीन सूचना प्रकाशित", `${creatorName} ने नवीन सूचना प्रकाशित केली: ${body.title}.`, { ...notifData, sender_id: String(userId) }, String(userId));
     }
   } catch (notifyError) {
     console.error("Failed to send notice notification:", notifyError);

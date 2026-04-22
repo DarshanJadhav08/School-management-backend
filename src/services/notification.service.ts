@@ -190,10 +190,11 @@ export const NotificationService = {
 
       console.log(`[sendToClass] Total recipients: ${recipients.size}`);
 
-      // Save to DB
-      if (recipients.size > 0) {
+      // Save to DB (exclude creator — teacher la swatahla notification nako)
+      const dbRecipients = Array.from(recipients.keys()).filter(uid => uid !== creatorUserId);
+      if (dbRecipients.length > 0) {
         await Notification.bulkCreate(
-          Array.from(recipients.keys()).map(uid => ({
+          dbRecipients.map(uid => ({
             client_id: clientId,
             user_id: uid,
             title,
@@ -202,7 +203,7 @@ export const NotificationService = {
             data: sanitizedData,
           }))
         );
-        console.log(`[sendToClass] Saved ${recipients.size} notifications to DB`);
+        console.log(`[sendToClass] Saved ${dbRecipients.length} notifications to DB`);
       }
 
       // Send FCM
@@ -244,10 +245,14 @@ export const NotificationService = {
       const users = await User.findAll({ where: whereClause, attributes: ["id", "fcm_token"] });
       if (users.length === 0) return;
 
-      await Notification.bulkCreate(users.map(u => ({
-        client_id: clientId, user_id: u.id, title, body,
-        type: sanitizedData.type || 'general', data: sanitizedData,
-      })));
+      // Exclude creator from DB record too
+      const dbUsers = users.filter(u => u.id !== creatorUserId);
+      if (dbUsers.length > 0) {
+        await Notification.bulkCreate(dbUsers.map(u => ({
+          client_id: clientId, user_id: u.id, title, body,
+          type: sanitizedData.type || 'general', data: sanitizedData,
+        })));
+      }
 
       const tokens = users
         .filter(u => u.id !== creatorUserId)
@@ -277,13 +282,15 @@ export const NotificationService = {
       });
       if (admins.length === 0) return;
 
-      await Notification.bulkCreate(admins.map(u => ({
-        client_id: clientId, user_id: u.id, title, body,
-        type: sanitizedData.type || 'general', data: sanitizedData,
-      })));
+      const dbAdmins = admins.filter(u => u.id !== excludeUserId);
+      if (dbAdmins.length > 0) {
+        await Notification.bulkCreate(dbAdmins.map(u => ({
+          client_id: clientId, user_id: u.id, title, body,
+          type: sanitizedData.type || 'general', data: sanitizedData,
+        })));
+      }
 
-      const tokens = admins
-        .filter(u => u.id !== excludeUserId)
+      const tokens = dbAdmins
         .map(u => u.fcm_token)
         .filter((t): t is string => typeof t === 'string' && t.trim() !== '');
 
@@ -300,6 +307,10 @@ export const NotificationService = {
    */
   async sendToAdminsAndTeachers(clientId: string, title: string, body: string, data?: any, excludeUserId?: string) {
     try {
+      const sanitizedData = data ? Object.fromEntries(
+        Object.entries(data).map(([k, v]) => [k, v === null || v === undefined ? '' : String(v)])
+      ) : {};
+
       const recipients = await User.findAll({
         where: { 
           client_id: clientId,
@@ -310,18 +321,19 @@ export const NotificationService = {
 
       if (recipients.length === 0) return;
 
-      const notificationRecords = recipients.map((u) => ({
-        client_id: clientId,
-        user_id: u.id,
-        title,
-        body,
-        type: data?.type || 'general',
-        data: data || {},
-      }));
-      await Notification.bulkCreate(notificationRecords);
+      const dbRecipients = recipients.filter(u => u.id !== excludeUserId);
+      if (dbRecipients.length > 0) {
+        await Notification.bulkCreate(dbRecipients.map((u) => ({
+          client_id: clientId,
+          user_id: u.id,
+          title,
+          body,
+          type: sanitizedData.type || 'general',
+          data: sanitizedData,
+        })));
+      }
 
-      const tokens = recipients
-        .filter(u => u.id !== excludeUserId)
+      const tokens = dbRecipients
         .map((u) => u.fcm_token)
         .filter((t) => typeof t === 'string' && t.trim() !== "") as string[];
 
@@ -330,7 +342,7 @@ export const NotificationService = {
       const message: admin.messaging.MulticastMessage = {
         notification: { title, body },
         tokens,
-        data: data || {},
+        data: sanitizedData,
       };
 
       await admin.messaging().sendEachForMulticast(message);
@@ -345,6 +357,10 @@ export const NotificationService = {
    */
   async sendToSuperAdmins(title: string, body: string, data?: any) {
     try {
+      const sanitizedData = data ? Object.fromEntries(
+        Object.entries(data).map(([k, v]) => [k, v === null || v === undefined ? '' : String(v)])
+      ) : {};
+
       const superAdmins = await User.findAll({
         where: { role_name: { [Op.in]: ['superadmin', 'system admin'] } },
         attributes: ["id", "fcm_token", "client_id"],
@@ -352,15 +368,14 @@ export const NotificationService = {
 
       if (superAdmins.length === 0) return;
 
-      const notificationRecords = superAdmins.map((u) => ({
+      await Notification.bulkCreate(superAdmins.map((u) => ({
         client_id: u.client_id || undefined,
         user_id: u.id,
         title,
         body,
-        type: data?.type || 'general',
-        data: data || {},
-      }));
-      await Notification.bulkCreate(notificationRecords);
+        type: sanitizedData.type || 'general',
+        data: sanitizedData,
+      })));
 
       const tokens = superAdmins
         .map((u) => u.fcm_token)
@@ -368,13 +383,11 @@ export const NotificationService = {
 
       if (tokens.length === 0) return;
 
-      const message: admin.messaging.MulticastMessage = {
+      await admin.messaging().sendEachForMulticast({
         notification: { title, body },
         tokens,
-        data: data || {},
-      };
-
-      await admin.messaging().sendEachForMulticast(message);
+        data: sanitizedData,
+      });
     } catch (error) {
       console.error("Error in sendToSuperAdmins:", error);
     }
