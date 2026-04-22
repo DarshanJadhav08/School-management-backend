@@ -83,14 +83,14 @@ export const NotificationService = {
   /**
    * Send notification to a specific user by their User ID
    */
-  async sendToUser(userId: string, title: string, body: string, data?: any) {
+  async sendToUser(userId: string, title: string, body: string, data?: any, clientId?: string) {
     try {
       if (!userId || userId === 'undefined' || userId === 'null') {
         console.error(`[NotificationService] sendToUser: Invalid userId=${userId}`);
         return;
       }
 
-      console.log(`[NotificationService] sendToUser: userId=${userId}, title=${title}`);
+      console.log(`[NotificationService] sendToUser: userId=${userId}, title=${title}, clientId=${clientId}`);
 
       // Sanitize data - all values must be strings for FCM
       const sanitizedData = data ? Object.fromEntries(
@@ -99,13 +99,14 @@ export const NotificationService = {
 
       // 1. Save to Database for history
       const notif = await Notification.create({
+        client_id: clientId,
         user_id: userId,
         title,
         body,
         type: sanitizedData.type || 'general',
         data: sanitizedData,
       });
-      console.log(`[NotificationService] Saved to DB: id=${notif.id}, user_id=${userId}`);
+      console.log(`[NotificationService] Saved to DB: id=${notif.id}, user_id=${userId}, client_id=${clientId}`);
 
       // 2. Send FCM
       const user = await User.findByPk(userId);
