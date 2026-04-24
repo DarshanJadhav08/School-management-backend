@@ -11,6 +11,9 @@ build/
 .env
 .env.local
 .env.*.local
+
+# Firebase service account (sensitive)
+src/config/serviceAccountKey.json
 migrations/
 
 

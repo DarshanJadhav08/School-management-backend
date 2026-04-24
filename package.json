@@ -2,7 +2,7 @@
   "name": "zp_school_mandave_kh",
   "version": "1.0.0",
   "scripts": {
-    "start": "ts-node src/server.ts",
+    "start": "node dist/server.js",
     "dev": "nodemon --watch src --ext ts --exec ts-node src/server.ts",
     "build": "tsc",
     "prod": "node dist/server.js"
