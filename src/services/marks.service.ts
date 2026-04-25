@@ -209,33 +209,62 @@ class MarksService {
 
   // BULK SAVE - Multiple students
   async bulkSave(data: any) {
-    const { teacher_id, exam_name, students } = data;
+    const { teacher_id, exam_name, standard, students } = data;
+    const actualExamName = exam_name || 'General';
     const results = [];
     const errors = [];
 
-    for (const studentData of students) {
+    // If standard provided, fetch all students of that class
+    let studentList = students;
+    if (standard && (!students || students.length === 0)) {
+      const classStudents = await Student.findAll({ where: { standard } });
+      if (classStudents.length === 0) return { message: `No students found in class ${standard}` };
+      studentList = classStudents.map((s: any) => ({
+        roll_number: s.roll_number,
+        first_name: s.first_name,
+        subjects: []
+      }));
+    }
+
+    for (const studentData of studentList) {
       try {
-        const result = await this.saveOrUpdate({
-          ...studentData,
-          teacher_id,
-          exam_name: exam_name || 'General'
-        });
-        results.push({ 
-          roll_number: studentData.roll_number, 
-          success: true, 
-          message: result.message 
+        const student = await Student.findOne({ where: { roll_number: studentData.roll_number } });
+        if (!student) {
+          errors.push({ roll_number: studentData.roll_number, success: false, error: 'Student not found' });
+          continue;
+        }
+
+        await this.saveOrUpdate({ ...studentData, teacher_id, exam_name: actualExamName });
+
+        const savedSubjects = studentData.subjects.map((s: any) => ({
+          subject_name: s.subject_name,
+          marks_obtained: s.marks_obtained,
+          total_marks: s.total_marks || 100,
+          percentage: ((s.marks_obtained / (s.total_marks || 100)) * 100).toFixed(2)
+        }));
+
+        const totalObtained = savedSubjects.reduce((sum: number, s: any) => sum + s.marks_obtained, 0);
+        const totalMarks = savedSubjects.reduce((sum: number, s: any) => sum + s.total_marks, 0);
+
+        results.push({
+          roll_number: student.roll_number,
+          first_name: student.first_name,
+          success: true,
+          exam_name: actualExamName,
+          subjects: savedSubjects,
+          summary: {
+            total_obtained: totalObtained,
+            total_marks: totalMarks,
+            overall_percentage: totalMarks > 0 ? ((totalObtained / totalMarks) * 100).toFixed(2) : '0.00'
+          }
         });
       } catch (error: any) {
-        errors.push({ 
-          roll_number: studentData.roll_number, 
-          success: false, 
-          error: error.message 
-        });
+        errors.push({ roll_number: studentData.roll_number, success: false, error: error.message });
       }
     }
 
     return {
-      message: `Processed ${students.length} students`,
+      message: `Processed ${studentList.length} students`,
       successful: results.length,
       failed: errors.length,
       results,
