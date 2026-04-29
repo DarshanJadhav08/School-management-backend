@@ -115,8 +115,11 @@ class MarksController {
 
   async getAllExams(request: FastifyRequest, reply: FastifyReply) {
     try {
-      const { classes } = request.query as any;
-      const exams = await marksService.getAllExams(classes);
+      const { classes, client_id: queryClientId } = request.query as any;
+      const { client_id: paramClientId } = request.params as any;
+      const client_id = queryClientId || paramClientId;
+      
+      const exams = await marksService.getAllExams(classes, client_id);
       return reply.send({ exams });
     } catch (error: any) {
       return reply.status(500).send({ error: error.message });
@@ -125,13 +128,15 @@ class MarksController {
 
   async getToppersData(request: FastifyRequest, reply: FastifyReply) {
     try {
-      const { classes } = request.query as any;
+      const { classes, client_id: queryClientId } = request.query as any;
+      const { client_id: paramClientId } = request.params as any;
+      const client_id = queryClientId || paramClientId;
       
       if (!classes) {
         return reply.status(400).send({ error: 'Classes parameter is required' });
       }
       
-      const marks = await marksService.getToppersData(classes);
+      const marks = await marksService.getToppersData(classes, client_id);
       return reply.send({ marks });
     } catch (error: any) {
       return reply.status(500).send({ error: error.message });

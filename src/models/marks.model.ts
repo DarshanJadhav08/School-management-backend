@@ -4,6 +4,7 @@ import { sequelize } from "../db/connection";
 export class Marks extends Model {
   declare id: string;
   declare student_id: string;
+  declare client_id: string | null;
   declare teacher_id: string;
   declare first_name: string;
   declare roll_number: string;
@@ -31,6 +32,15 @@ Marks.init(
         key: "id",
       },
       onDelete: "CASCADE",
+    },
+    
+    client_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: "clients",
+        key: "id",
+      },
     },
 
     teacher_id: {
@@ -83,7 +93,7 @@ Marks.init(
     indexes: [
       {
         unique: true,
-        fields: ["student_id", "subject_name", "exam_name"],
+        fields: ["student_id", "subject_name", "exam_name", "client_id"],
       },
     ],
   }
