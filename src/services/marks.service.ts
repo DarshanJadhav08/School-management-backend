@@ -57,7 +57,6 @@ class MarksService {
           } else {
             await Marks.create({
               student_id: student.id,
-              client_id: student.client_id,
               teacher_id: actualTeacherId,
               first_name: student.first_name || "",
               roll_number: student.roll_number || "",
@@ -273,59 +272,48 @@ class MarksService {
     };
   }
 
-  // GET ALL EXAM NAMES (with optional filters)
-  async getAllExams(classes?: string, client_id?: string) {
+  // GET ALL EXAM NAMES (with optional class filter)
+  async getAllExams(classes?: string) {
     const { QueryTypes } = require('sequelize');
     const { sequelize } = require('../db/connection');
     
     let query: string;
-    let replacements: any = {};
-    
-    let whereClauses: string[] = ['m.exam_name IS NOT NULL'];
+    let replacements: any[] = [];
     
     if (classes) {
       const classArray = classes.split(',').map(c => c.trim());
-      whereClauses.push('s.standard IN (:classes)');
-      replacements.classes = classArray;
+      query = `
+        SELECT DISTINCT m.exam_name
+        FROM marks m
+        JOIN students s ON m.student_id = s.id
+        WHERE s.standard IN (:classes)
+        AND m.exam_name IS NOT NULL
+        ORDER BY m.exam_name
+      `;
+      replacements = classArray;
+    } else {
+      query = `
+        SELECT DISTINCT exam_name
+        FROM marks
+        WHERE exam_name IS NOT NULL
+        ORDER BY exam_name
+      `;
     }
-    
-    if (client_id) {
-      whereClauses.push('s.client_id = :client_id');
-      replacements.client_id = client_id;
-    }
-    
-    const whereString = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
-    
-    query = `
-      SELECT DISTINCT m.exam_name
-      FROM marks m
-      JOIN students s ON m.student_id = s.id
-      ${whereString}
-      ORDER BY m.exam_name
-    `;
     
     const results = await sequelize.query(query, {
-      replacements,
+      replacements: classes ? { classes: replacements } : {},
       type: QueryTypes.SELECT
     });
     
     return results.map((row: any) => row.exam_name);
   }
 
-  // GET TOPPERS DATA (marks for selected classes and client)
-  async getToppersData(classes: string, client_id?: string) {
+  // GET TOPPERS DATA (marks for selected classes)
+  async getToppersData(classes: string) {
     const { QueryTypes } = require('sequelize');
     const { sequelize } = require('../db/connection');
     
     const classArray = classes.split(',').map(c => c.trim());
-    
-    let whereClauses: string[] = ['s.standard IN (:classes)'];
-    let replacements: any = { classes: classArray };
-    
-    if (client_id) {
-      whereClauses.push('s.client_id = :client_id');
-      replacements.client_id = client_id;
-    }
     
     const query = `
       SELECT 
@@ -338,12 +326,12 @@ class MarksService {
         m.total_marks
       FROM marks m
       JOIN students s ON m.student_id = s.id
-      WHERE ${whereClauses.join(' AND ')}
+      WHERE s.standard IN (:classes)
       ORDER BY s.standard, s.roll_number, m.exam_name
     `;
     
     const results = await sequelize.query(query, {
-      replacements,
+      replacements: { classes: classArray },
       type: QueryTypes.SELECT
     });
     

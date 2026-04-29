@@ -9,9 +9,9 @@ export default async function marksRoutes(fastify: FastifyInstance) {
 
   fastify.get("/student", marksController.getStudentMarks);
 
-  fastify.get("/exams/:client_id", marksController.getAllExams);
+  fastify.get("/exams", marksController.getAllExams);
 
-  fastify.get("/toppers/:client_id", marksController.getToppersData);
+  fastify.get("/toppers", marksController.getToppersData);
 
   fastify.get("/:id", marksController.getById);
 
