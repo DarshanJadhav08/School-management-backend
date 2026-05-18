@@ -231,6 +231,8 @@ export const googleLoginService = async (
 
   const client = new OAuth2Client(clientId);
   let email: string | undefined;
+  let googleName: string | undefined;
+  let googlePicture: string | undefined;
 
   try {
     const ticket = await client.verifyIdToken({
@@ -239,6 +241,8 @@ export const googleLoginService = async (
     });
     const payload = ticket.getPayload();
     email = payload?.email;
+    googleName = payload?.name;
+    googlePicture = payload?.picture;
   } catch (verificationError: any) {
     console.error("Google token verification failed:", verificationError.message);
     const error: any = new Error("Invalid Google ID token");
@@ -304,12 +308,21 @@ export const googleLoginService = async (
   if (user.role_name === 'student') {
     const student = await Student.findOne({ where: { user_id: user.id } });
     roleSpecificId = (student as any)?.id;
+    if (student && !(student as any).profile_image_url && googlePicture) {
+      await student.update({ profile_image_url: googlePicture });
+    }
   } else if (user.role_name === 'teacher') {
     const teacher = await Teacher.findOne({ where: { user_id: user.id } });
     roleSpecificId = (teacher as any)?.id;
+    if (teacher && !(teacher as any).profile_image_url && googlePicture) {
+      await teacher.update({ profile_image_url: googlePicture });
+    }
   } else if (user.role_name === 'admin') {
     const admin = await Admin.findOne({ where: { user_id: user.id } });
     roleSpecificId = (admin as any)?.id;
+    if (admin && !(admin as any).profile_image_url && googlePicture) {
+      await admin.update({ profile_image_url: googlePicture });
+    }
   }
 
   const response: any = {
@@ -317,6 +330,8 @@ export const googleLoginService = async (
     user_id: user.id,
     role_id: user.role_id,
     unique_id: user.unique_id,
+    google_name: googleName,
+    google_picture: googlePicture,
     suspicious_login,
     previous_device: suspicious_login ? (deviceName || 'Unknown Device') : undefined,
     login_time: suspicious_login ? (loginTime || new Date().toISOString()) : undefined,
