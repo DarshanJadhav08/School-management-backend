@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { signupService, loginService, googleLoginService } from "../services/auth.service";
+import { signupService, loginService, googleLoginService, googleLoginByTokenService } from "../services/auth.service";
 import { refreshTokenService } from "../services/token.service";
 import { findUserByPhone } from "../repositories/auth.repository";
 import bcrypt from "bcrypt";
@@ -125,6 +125,48 @@ export const googleLoginController = async (req: FastifyRequest<{ Body: GoogleLo
     const { idToken, fcmToken, device_name, device_platform, login_time, device_id } = req.body;
 
     const result = await googleLoginService(idToken, fcmToken, device_name, device_platform, login_time, device_id);
+
+    reply.send({
+      message: "Login successful",
+      ...result
+    });
+  } catch (error: any) {
+    const statusCode = error.statusCode || 400;
+    reply.status(statusCode).send({
+      statusCode,
+      error: statusCode === 403 ? "Forbidden" : statusCode === 401 ? "Unauthorized" : "Bad Request",
+      message: error.message
+    });
+  }
+};
+
+interface GoogleLoginByTokenBody {
+  accessToken: string;
+  email: string;
+  name: string;
+  photo: string;
+  fcmToken?: string;
+  device_name?: string;
+  device_platform?: string;
+  device_id?: string;
+  login_time?: string;
+}
+
+export const googleLoginByTokenController = async (req: FastifyRequest<{ Body: GoogleLoginByTokenBody }>, reply: FastifyReply) => {
+  try {
+    const { accessToken, email, name, photo, fcmToken, device_name, device_platform, login_time, device_id } = req.body;
+
+    const result = await googleLoginByTokenService(
+      accessToken,
+      email,
+      name,
+      photo,
+      fcmToken,
+      device_name,
+      device_platform,
+      login_time,
+      device_id
+    );
 
     reply.send({
       message: "Login successful",
