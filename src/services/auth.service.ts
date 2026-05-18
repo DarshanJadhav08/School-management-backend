@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { createUserWithRole, findUserByPhone, findUserByUniqueId } from "../repositories/auth.repository";
+import { OAuth2Client } from "google-auth-library";
+import { createUserWithRole, findUserByPhone, findUserByUniqueId, findUserByEmail } from "../repositories/auth.repository";
 import { Role, Client, Student, Teacher, Admin } from "../models";
 
 const JWT_SECRET = process.env.JWT_SECRET || "school_secret";
@@ -15,6 +16,7 @@ interface SignupData {
   role_name: string;
   role_id?: string;
   client_id: string;
+  email?: string;
   // Student fields
   parent_name?: string;
   gender?: 'male' | 'female' | 'other';
@@ -193,6 +195,128 @@ export const loginService = async (
     ...tokens,
     user_id: user.id,
     role_id: user.role_id,
+    unique_id: user.unique_id,
+    suspicious_login,
+    previous_device: suspicious_login ? (deviceName || 'Unknown Device') : undefined,
+    login_time: suspicious_login ? (loginTime || new Date().toISOString()) : undefined,
+  };
+
+  if (roleSpecificId) {
+    if (user.role_name === 'student') response.student_id = roleSpecificId;
+    else if (user.role_name === 'teacher') response.teacher_id = roleSpecificId;
+    else if (user.role_name === 'admin') response.admin_id = roleSpecificId;
+  }
+
+  return response;
+};
+
+export const googleLoginService = async (
+  idToken: string,
+  fcmToken?: string,
+  deviceName?: string,
+  devicePlatform?: string,
+  loginTime?: string,
+  deviceId?: string
+) => {
+  if (!idToken) {
+    const error: any = new Error("Google ID Token is required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (!clientId) {
+    console.warn("⚠️ GOOGLE_CLIENT_ID is not configured in environment variables.");
+  }
+
+  const client = new OAuth2Client(clientId);
+  let email: string | undefined;
+
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken: idToken,
+      audience: clientId,
+    });
+    const payload = ticket.getPayload();
+    email = payload?.email;
+  } catch (verificationError: any) {
+    console.error("Google token verification failed:", verificationError.message);
+    const error: any = new Error("Invalid Google ID token");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  if (!email) {
+    const error: any = new Error("Failed to retrieve email from Google token");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const user = await findUserByEmail(email);
+  if (!user) {
+    const error: any = new Error("Access Denied: Your email is not registered in the system.");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  // Suspicious login detection
+  let suspicious_login = false;
+  const oldFcmToken = user.fcm_token;
+  const oldDeviceId = (user as any).last_device_id;
+
+  const isNewDevice = deviceId && oldDeviceId && deviceId !== oldDeviceId;
+  const isNewToken = !deviceId && fcmToken && oldFcmToken && fcmToken !== oldFcmToken;
+
+  if (isNewDevice || isNewToken) {
+    suspicious_login = true;
+    const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'User';
+    const device = deviceName || 'a new device';
+    const platform = devicePlatform || '';
+    const time = loginTime
+      ? new Date(loginTime).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true })
+      : new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true });
+
+    try {
+      const { NotificationService } = await import('./notification.service');
+      await NotificationService.sendToUser(
+        user.id,
+        '⚠️ New Login Detected',
+        `Your account (${userName}) was logged in from ${device}${platform ? ' (' + platform + ')' : ''} at ${time}. If this was not you, change your password immediately.`,
+        { type: 'security_alert', sender_id: user.id }
+      );
+    } catch (e) {
+      console.error('Failed to send suspicious login notification:', e);
+    }
+  }
+
+  // Update FCM token and last device id
+  const updateData: any = {};
+  if (fcmToken) updateData.fcm_token = fcmToken;
+  if (deviceId) updateData.last_device_id = deviceId;
+  if (Object.keys(updateData).length > 0) {
+    await user.update(updateData);
+  }
+
+  const tokens = generateTokens(user.id, user.role_id, user.role_name, user.client_id);
+
+  // Get role-specific ID
+  let roleSpecificId = null;
+  if (user.role_name === 'student') {
+    const student = await Student.findOne({ where: { user_id: user.id } });
+    roleSpecificId = (student as any)?.id;
+  } else if (user.role_name === 'teacher') {
+    const teacher = await Teacher.findOne({ where: { user_id: user.id } });
+    roleSpecificId = (teacher as any)?.id;
+  } else if (user.role_name === 'admin') {
+    const admin = await Admin.findOne({ where: { user_id: user.id } });
+    roleSpecificId = (admin as any)?.id;
+  }
+
+  const response: any = {
+    ...tokens,
+    user_id: user.id,
+    role_id: user.role_id,
+    unique_id: user.unique_id,
     suspicious_login,
     previous_device: suspicious_login ? (deviceName || 'Unknown Device') : undefined,
     login_time: suspicious_login ? (loginTime || new Date().toISOString()) : undefined,

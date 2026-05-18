@@ -12,6 +12,7 @@ export interface IUser {
   is_active?: boolean;
   fcm_token?: string;
   last_device_id?: string;
+  email?: string | null;
   created_at?: Date;
 }
 

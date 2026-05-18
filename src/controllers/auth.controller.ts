@@ -1,5 +1,5 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { signupService, loginService } from "../services/auth.service";
+import { signupService, loginService, googleLoginService } from "../services/auth.service";
 import { refreshTokenService } from "../services/token.service";
 import { findUserByPhone } from "../repositories/auth.repository";
 import bcrypt from "bcrypt";
@@ -12,6 +12,7 @@ interface SignupBody {
   password: string;
   role_name: string;
   client_id: string;
+  email?: string;
   // Student fields
   parent_name?: string;
   gender?: 'male' | 'female' | 'other';
@@ -38,6 +39,15 @@ interface SignupBody {
 interface LoginBody {
   uniqueIdOrPhone: string;
   password: string;
+  fcmToken?: string;
+  device_name?: string;
+  device_platform?: string;
+  device_id?: string;
+  login_time?: string;
+}
+
+interface GoogleLoginBody {
+  idToken: string;
   fcmToken?: string;
   device_name?: string;
   device_platform?: string;
@@ -105,6 +115,26 @@ export const loginController = async (req: FastifyRequest<{ Body: LoginBody }>, 
     reply.status(statusCode).send({
       statusCode,
       error: statusCode === 404 ? "Not Found" : statusCode === 401 ? "Unauthorized" : "Bad Request",
+      message: error.message
+    });
+  }
+};
+
+export const googleLoginController = async (req: FastifyRequest<{ Body: GoogleLoginBody }>, reply: FastifyReply) => {
+  try {
+    const { idToken, fcmToken, device_name, device_platform, login_time, device_id } = req.body;
+
+    const result = await googleLoginService(idToken, fcmToken, device_name, device_platform, login_time, device_id);
+
+    reply.send({
+      message: "Login successful",
+      ...result
+    });
+  } catch (error: any) {
+    const statusCode = error.statusCode || 400;
+    reply.status(statusCode).send({
+      statusCode,
+      error: statusCode === 403 ? "Forbidden" : statusCode === 401 ? "Unauthorized" : "Bad Request",
       message: error.message
     });
   }

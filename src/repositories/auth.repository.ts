@@ -21,6 +21,7 @@ export const createUserWithRole = async (data: any) => {
           last_name: data.last_name,
           phone: data.mobile_number || data.phone,
           password: data.password,
+          email: data.email,
           role_id: data.role_id,
           role_name: data.role_name,
           client_id: data.client_id,
@@ -137,4 +138,9 @@ export const findUserByPhone = async (phone: string) => {
 export const findUserByUniqueId = async (uniqueId: string) => {
   if (!uniqueId) return null;
   return User.findOne({ where: { unique_id: uniqueId } as any });
+};
+
+export const findUserByEmail = async (email: string) => {
+  if (!email) return null;
+  return User.findOne({ where: { email } });
 };

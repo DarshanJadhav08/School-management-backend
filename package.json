@@ -16,6 +16,7 @@
     "dotenv": "^16.4.0",
     "fastify": "^4.28.0",
     "firebase-admin": "^13.8.0",
+    "google-auth-library": "^10.6.2",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
     "pg": "^8.18.0",

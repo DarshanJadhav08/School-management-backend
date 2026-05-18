@@ -19,6 +19,7 @@ export class User
   public is_active!: boolean;
   public fcm_token!: string;
   public last_device_id!: string;
+  public email!: string | null;
   public created_at!: Date;
 }
 
@@ -61,6 +62,11 @@ User.init(
     password: {
       type: DataTypes.STRING,
       allowNull: false,
+    },
+    email: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      unique: true,
     },
     unique_id: {
       type: DataTypes.STRING,
