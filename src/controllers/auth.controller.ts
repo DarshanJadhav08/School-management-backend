@@ -1,8 +1,8 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { signupService, loginService, googleLoginService, googleLoginByTokenService } from "../services/auth.service";
 import { refreshTokenService } from "../services/token.service";
-import { findUserByPhone } from "../repositories/auth.repository";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 
 interface SignupBody {
   first_name: string;
@@ -59,8 +59,12 @@ interface RefreshTokenBody {
   refreshToken: string;
 }
 
+interface ForgotPasswordBody {
+  user_id: string;
+}
+
 interface ResetPasswordBody {
-  phone: string;
+  token: string;
   newPassword: string;
 }
 
@@ -192,15 +196,67 @@ export const refreshTokenController = async (req: FastifyRequest<{ Body: Refresh
   }
 };
 
-export const resetPasswordController = async (req: FastifyRequest<{ Body: ResetPasswordBody }>, reply: FastifyReply) => {
+export const forgotPasswordController = async (req: FastifyRequest<{ Body: ForgotPasswordBody }>, reply: FastifyReply) => {
   try {
-    const { phone, newPassword } = req.body;
-    
-    if (!phone || !newPassword) {
-      return reply.status(400).send({ error: "Phone and new password are required" });
+    const { user_id } = req.body;
+    const requester = req.user!;
+
+    if (!user_id) {
+      return reply.status(400).send({ error: "user_id is required" });
     }
 
-    const user = await findUserByPhone(phone);
+    const { User } = await import("../models");
+    const targetUser = await User.findByPk(user_id);
+    if (!targetUser) {
+      return reply.status(404).send({ error: "User not found" });
+    }
+
+    const requesterRole = requester.role_name;
+    const targetRole = targetUser.role_name;
+
+    const allowed =
+      (requesterRole === "admin" && ["teacher", "student"].includes(targetRole) && requester.client_id === targetUser.client_id) ||
+      (requesterRole === "superadmin" && ["admin", "superadmin"].includes(targetRole));
+
+    if (!allowed) {
+      return reply.status(403).send({ error: "You are not allowed to reset this user's password" });
+    }
+
+    const JWT_SECRET = process.env.JWT_SECRET || "school_secret";
+    const token = jwt.sign({ user_id: targetUser.id, purpose: "password_reset" }, JWT_SECRET, { expiresIn: "30m" });
+
+    reply.send({
+      message: "Password reset token generated",
+      reset_token: token,
+      expires_in: "30 minutes",
+    });
+  } catch (error: any) {
+    reply.status(500).send({ error: error.message });
+  }
+};
+
+export const resetPasswordController = async (req: FastifyRequest<{ Body: ResetPasswordBody }>, reply: FastifyReply) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return reply.status(400).send({ error: "token and newPassword are required" });
+    }
+
+    const JWT_SECRET = process.env.JWT_SECRET || "school_secret";
+    let payload: any;
+    try {
+      payload = jwt.verify(token, JWT_SECRET) as any;
+    } catch {
+      return reply.status(400).send({ error: "Invalid or expired token" });
+    }
+
+    if (payload.purpose !== "password_reset") {
+      return reply.status(400).send({ error: "Invalid token" });
+    }
+
+    const { User } = await import("../models");
+    const user = await User.findByPk(payload.user_id);
     if (!user) {
       return reply.status(404).send({ error: "User not found" });
     }
