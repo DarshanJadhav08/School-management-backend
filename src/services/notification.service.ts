@@ -32,9 +32,20 @@ const reconstructPEM = (key: string | undefined): string | undefined => {
 try {
   if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
     // Individual Env Vars (Most Robust)
-    let privateKey = reconstructPEM(process.env.FIREBASE_PRIVATE_KEY);
-    
+    const rawKey = process.env.FIREBASE_PRIVATE_KEY;
     console.log("Firebase config loaded from individual environment variables.");
+    console.log(`[Firebase Diagnostics] Raw key length: ${rawKey ? rawKey.length : 0}`);
+    if (rawKey) {
+      console.log(`[Firebase Diagnostics] Raw key starts with: "${rawKey.substring(0, 30)}..."`);
+      console.log(`[Firebase Diagnostics] Raw key ends with: "...${rawKey.substring(rawKey.length - 30)}"`);
+    }
+    
+    let privateKey = reconstructPEM(rawKey);
+    console.log(`[Firebase Diagnostics] Formatted key length: ${privateKey ? privateKey.length : 0}`);
+    if (privateKey) {
+      console.log(`[Firebase Diagnostics] Formatted key starts with: "${privateKey.substring(0, 40).replace(/\n/g, '\\n')}..."`);
+      console.log(`[Firebase Diagnostics] Formatted key ends with: "...${privateKey.substring(privateKey.length - 40).replace(/\n/g, '\\n')}"`);
+    }
     
     serviceAccount = {
       project_id: process.env.FIREBASE_PROJECT_ID,
