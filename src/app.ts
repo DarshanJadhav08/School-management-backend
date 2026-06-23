@@ -47,7 +47,15 @@ connectDB()
     app.log.info("Models synced");
   })
   .catch((err) => {
-    app.log.error("Database connection error:", err);
+    app.log.error(`Database connection error: ${err.message || err}`);
+    app.log.error(`DB Error Code: ${err.code || 'N/A'}`);
+    app.log.error(`DB Error Detail: ${err.original?.message || err.parent?.message || 'N/A'}`);
+    app.log.error(`DATABASE_URL set: ${!!process.env.DATABASE_URL}`);
+    if (process.env.DATABASE_URL) {
+      // Log URL safely - hide password
+      const safeUrl = process.env.DATABASE_URL.replace(/:([^@]+)@/, ':****@');
+      app.log.error(`DATABASE_URL (masked): ${safeUrl}`);
+    }
   });
 
 // Register all routes
